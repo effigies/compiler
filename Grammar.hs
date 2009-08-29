@@ -7,47 +7,9 @@ module Grammar ( program ) where
 
 {- We need to know what about Symbols -}
 import Defs
+import Match
 import Test
 import Data.List ( nub )
-
-{- match and matchSym can be thought of as templates, which, when given an
- - argument, become productions which match a single terminal
- -}
-match :: (Symbol -> Bool) -> [Token] -> [Token]
-match b [] = error "Not enough tokens..."
-match b (t:ts) = if b (sym t) then ts else error ("Failed match " ++ show (t:ts))
-
-matchErr :: String -> Symbol -> Line -> a
-matchErr e EOF _ = error ("Expected " ++ (show e) ++ "; received EOF.")
-matchErr e g l = error ("Expected " ++ (show e) ++ "; received " ++ (show g) ++ ".\n" ++ (show l))
-
-{- matchSym - match exact symbols
- - Not for use with generic symbols (like IDs or literals)
- -}
-matchSym :: Symbol -> [Token] -> [Token]
-matchSym s [] = matchErr (show s) EOF NoLine
-matchSym s (t:ts) | sym t == s	= ts
-		  | otherwise	= matchErr (show s) (sym t) (line t)
-
-matchID :: [Token] -> [Token]
-matchID [] = matchErr "identifier" EOF NoLine
-matchID ((Token _ (REF _)):ts) = ts
-matchID ((Token _ (ID _)):ts) = ts -- Only useful if we don't tabulate
-matchID (t:ts) = matchErr "identifier" (sym t) (line t)
-
-matchInt [] = matchErr "integer" EOF NoLine
-matchInt ((Token _ (INT _)):ts) = ts
-matchInt (t:ts) = matchErr "integer" (sym t) (line t)
-
-eof :: [Token] -> [Token]
-eof [] = []
-eof ts = error ("Expected EOF, received: " ++ remainder ts)
-	where
-		remainder :: [Token] -> String
-		remainder ts = unlines (map show (nub (map line ts)))
-
---remainder' :: Line -> String
---remainder' (Line _ s) = s
 
 {- Here is our special-made sequencer, which allows us to write our productions
  - naturally (first -> last) and with far fewer parentheses than normal
@@ -107,7 +69,7 @@ program''' :: [Token] -> [Token]
 program''' e	=  e
 		$> compound_statement
 		$> matchSym DOT
-		$> eof
+		$> matchEOF
 
 {-
  - 2.1.1.1.1.1	identifier_list → id identifier_list'
@@ -321,10 +283,12 @@ statement e@(t:ts) | sym t == RES "begin"	=  e
 					$> matchSym (RES "then")
 					$> statement
 					$> statement'
-		   | otherwise		= e
+		   | testID (sym t)	= e
 					$> variable
 					$> matchSym ASSIGNOP
 					$> expression
+--		   | otherwise		= syntaxErr t ["begin", "while", "if",
+--							"an identifier"]
 
 {-
  - 14.3.1.1.2.1	statement' → else statement
@@ -437,7 +401,7 @@ factor e@(t:ts)	| isNum (sym t)		=  ts
 		| sym t == DELIM "("	=  ts
 					$> expression
 					$> matchSym (DELIM ")")
-		| otherwise		=  e
+		| testID (sym t)	=  e
 					$> matchID
 					$> factor'
 

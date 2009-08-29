@@ -34,7 +34,7 @@ fixup t = case (sym t) of
 	WHITESPACE	-> []
 	NAME n		-> [t { sym = if isReserved n then RES n else ID n }]
 	_		-> [t]
-
+{-
 ntabulate :: [nToken] -> [nToken]
 ntabulate = ntabulate' []
 
@@ -43,7 +43,7 @@ ntabulate _ [] = []
 ntabulate table (t:ts)	| isID (sym t ) = let (tab',r) = insert tab t
 					in r { tab = tab' } : ntabulate tab' ts
 			| otherwise	= t { tab = table } : ntabulate table ts
-
+-}
 -- tabulate - construct symbol table, and replace IDs with REFs
 tabulate :: [Token] -> ([Symbol],[Token])
 tabulate = tabulate' []
