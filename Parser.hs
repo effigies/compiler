@@ -9,7 +9,7 @@
 import Tape
 import Defs
 import Token
-import PreProcess
+-- import PreProcess
 -- import Lex
 import Grammar
 import Test
@@ -18,10 +18,10 @@ type LexOut = ([Symbol],[Token])
 
 end = Token NoLine EOF
 
-{-
-scan :: [String] -> LexOut
-scan input = scan' =<< (zipWith Line [1..] input)
--}
+parse input = let (tab,toks) = scan input in
+	program (State (tapify (toks ++ [end])) tab)
+
+-- Revision of Lex. More modular.
 
 scan :: [String] -> LexOut
 scan input = tabulate (zipWith Line [1..] input >>= scan' >>= fixup)
@@ -29,21 +29,6 @@ scan input = tabulate (zipWith Line [1..] input >>= scan' >>= fixup)
 scan' :: Line -> [Token]
 scan' l@(Line _ text) = map (Token l) (tokenize (tapify' text))
 
-fixup :: Token -> [Token]
-fixup t = case (sym t) of
-	WHITESPACE	-> []
-	NAME n		-> [t { sym = if isReserved n then RES n else ID n }]
-	_		-> [t]
-{-
-ntabulate :: [nToken] -> [nToken]
-ntabulate = ntabulate' []
-
-ntabulate :: [Symbol] -> [nToken] -> [nToken]
-ntabulate _ [] = []
-ntabulate table (t:ts)	| isID (sym t ) = let (tab',r) = insert tab t
-					in r { tab = tab' } : ntabulate tab' ts
-			| otherwise	= t { tab = table } : ntabulate table ts
--}
 -- tabulate - construct symbol table, and replace IDs with REFs
 tabulate :: [Token] -> ([Symbol],[Token])
 tabulate = tabulate' []
@@ -67,10 +52,60 @@ tabulate' tab (t:ts) = let (tab',r) = if isID (sym t) then insert tab t
 insert :: [Symbol] -> Token -> ([Symbol],Token)
 insert = insert' 1
 
-
 -- insert' - Insert a token into a symbol table, with base index n
 insert' :: Int -> [Symbol] -> Token -> ([Symbol], Token)
 insert' n [] tok	= ([sym tok], tok {sym = REF n})
 insert' n (t:tab) tok	| t == sym tok	= (t:tab, tok {sym = REF n})
 			| otherwise	= let (tab', r) = insert' (n+1) tab tok
 					in (t:tab', r)
+
+-- This stuff used to be PreProcess.
+
+-- Constraints
+maxIDLen, maxIntLen, maxWholeLen, maxFracLen, maxExpLen	:: Int
+maxIDLen	= 10
+maxIntLen	= 10
+maxWholeLen	= 5
+maxFracLen	= 5
+maxExpLen	= 2
+
+fixup :: Token -> [Token]
+fixup t = case (sym t) of
+	WHITESPACE	-> []
+	NAME n		-> [t { sym = nameCheck	n }]
+	INT i		-> [t { intCheck	i }]
+	REAL r		-> [t { realCheck	r }]
+	BIGREAL b	-> [t { bigRealCheck	b }]
+	_		-> [t]
+
+nameCheck :: String -> Symbol
+nameCheck name	| length name > maxIDLen	= LEXERR LONGID name
+		| isReserved name		= RES name
+		| otherwise			= ID name
+
+intCheck :: String -> Symbol
+intCheck int   | length int <= maxIntLen	= INT int
+	       | otherwise			= LEXERR LONGINT int
+
+realCheck :: String -> Symbol
+realCheck real = let (whole, dot:frac) = span (/= '.') real in
+		if length whole > maxWholeLen then
+			LEXERR LONGWHOLE real
+		else if length frac > maxFracLen then
+			LEXERR LONGFRAC real
+		else REAL real
+
+bigRealCheck :: String -> Symbol
+bigRealCheck bigReal = let (real, e:exp)     = span (not . (`elem` "eE")) bigReal
+			   (whole, frac) = span (/= '.') real
+			   exp' = if (head exp) `elem` "+-"
+				  then tail exp
+				  else exp
+		in
+		if length whole > maxWholeLen then
+			LEXERR LONGWHOLE bigReal
+		else if length frac > (maxFracLen + 1) then
+			LEXERR LONGFRAC bigReal
+		else if length exp' > maxExpLen then
+			LEXERR LONGEXP bigReal
+		else BIGREAL bigReal

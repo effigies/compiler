@@ -11,18 +11,18 @@ import Data.List ( nub )
 {- match and matchSym can be thought of as templates, which, when given an
  - argument, become productions which match a single terminal
  -}
-match :: (Symbol -> Bool) -> [Token] -> [Token]
-match b [] = error "Not enough tokens..."
+match :: (Symbol -> Bool) -> State -> State
+match b (State (Tape _ (Token NoLine EOF) _) _) = error "Not enough tokens..."
 match b (t:ts) = if b (sym t) then ts else error ("Failed match " ++ show (t:ts))
 
-matchErr :: String -> Symbol -> Line -> [Token]
+matchErr :: String -> Symbol -> Line -> State
 matchErr e EOF _ = error ("Expected " ++ (show e) ++ "; received EOF.")
 matchErr e g l = error ("Expected " ++ (show e) ++ "; received " ++ (show g) ++ ".\n" ++ (show l))
 
 {- matchSym - match exact symbols
  - Not for use with generic symbols (like IDs or literals)
  -}
-matchSym :: Symbol -> [Token] -> [Token]
+matchSym :: Symbol -> State -> State
 matchSym s [] = matchErr (show s) EOF NoLine
 matchSym s (t:ts) | sym t == s	= ts
 		  | otherwise	= matchErr (show s) (sym t) (line t)

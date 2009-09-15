@@ -3,9 +3,11 @@
  -}
 
 module Defs ( Line( Line, NoLine ),
-	      Token( Token ), line, sym, -- line and sym are the fields of Token
+	      Token( Token ), line, sym,
+	      State( State ), tape, table,
 	      Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, NAME,
-			ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF),
+			ID, REF, RES, BIGREAL, REAL, INT, LEXERR, SYNTAXERR,
+			DOT, EOF),
 	      LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
 			LONGID),
 	      isWS, isID, isINT, isREAL, isNum, isRELOP, isADDOP, isMULOP, isSIGN)
@@ -23,6 +25,8 @@ data Token = Token {line :: Line, sym :: Symbol}
 
 instance Show Token where
 	show (Token l s) = show l ++ " (" ++ show s ++ ")"
+
+data State = State {tape :: (Tape Token); table :: [Symbol] }
 
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
@@ -47,6 +51,7 @@ data Symbol	=  WHITESPACE			-- Spaces, tabs, newlines
 
 		-- Lexical errors require we retain both the token and
 		|  LEXERR		LexErrType String
+		|  SYNTAXERR		String [Symbol]
 	deriving Show
 
 -- In case we want to be able to compare

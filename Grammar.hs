@@ -48,8 +48,10 @@ program' :: [Token] -> [Token]
 program' e@(t:_) | sym t == RES "var"	=  e
 					$> declarations
 					$> program''
-		 | otherwise		=  e
+		 | sym t == RES "function"
+		|| sym t == RES "begin"	=  e
 					$> program''
+--		 | otherwise
 
 {-
  - 1.1.1.1.3.1	program'' → subprogram_declarations program'''
@@ -57,10 +59,11 @@ program' e@(t:_) | sym t == RES "var"	=  e
  -}
 program'' :: [Token] -> [Token]
 program'' e@(t:_) | sym t == RES "function"	=  e
-					$> subprogram_declarations
-					$> program'''
-		   | otherwise		=  e
-					$> program'''
+						$> subprogram_declarations
+						$> program'''
+		  | sym t == RES "begin"	=  e
+						$> program'''
+--		  | otherwise
 
 {-
  - 1.1.1.1.4.1	program''' → compound_statement .
