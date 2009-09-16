@@ -10,6 +10,10 @@ import Defs
 import Match
 import Test
 import Data.List ( nub )
+import Tape
+
+extract :: State -> Symbol
+extract (State (Tape _ (Token _ s) _) _)	= s
 
 {- Here is our special-made sequencer, which allows us to write our productions
  - naturally (first -> last) and with far fewer parentheses than normal
@@ -30,7 +34,7 @@ import Data.List ( nub )
  - 1.1.1.1.1.1	program → program id ( identifier_list ) ; program'
  -}
 
-program :: [Token] -> [Token]
+program :: State -> State
 program e	=  e
 		$> matchSym (RES "program")
 		$> matchID
@@ -44,12 +48,12 @@ program e	=  e
  - 1.1.1.1.2.1	program' → declarations program''
  - 1.1.1.1.2.2	program' → program''
  -}
-program' :: [Token] -> [Token]
-program' e@(t:_) | sym t == RES "var"	=  e
+program' :: State -> State
+program' e | extract e == RES "var"	=  e
 					$> declarations
 					$> program''
-		 | sym t == RES "function"
-		|| sym t == RES "begin"	=  e
+	   | extract e == RES "function"
+	  || extract e == RES "begin"	=  e
 					$> program''
 --		 | otherwise
 
@@ -57,18 +61,18 @@ program' e@(t:_) | sym t == RES "var"	=  e
  - 1.1.1.1.3.1	program'' → subprogram_declarations program'''
  - 1.1.1.1.3.2	program'' → program'''
  -}
-program'' :: [Token] -> [Token]
-program'' e@(t:_) | sym t == RES "function"	=  e
+program'' :: State -> State
+program'' e | extract e == RES "function"	=  e
 						$> subprogram_declarations
 						$> program'''
-		  | sym t == RES "begin"	=  e
+	    | extract e == RES "begin"		=  e
 						$> program'''
 --		  | otherwise
 
 {-
  - 1.1.1.1.4.1	program''' → compound_statement .
  -}
-program''' :: [Token] -> [Token]
+program''' :: State -> State
 program''' e	=  e
 		$> compound_statement
 		$> matchSym DOT
@@ -77,7 +81,7 @@ program''' e	=  e
 {-
  - 2.1.1.1.1.1	identifier_list → id identifier_list'
  -}
-identifier_list :: [Token] -> [Token]
+identifier_list :: State -> State
 identifier_list e	=  e
 			$> matchID
 			$> identifier_list'
@@ -86,15 +90,15 @@ identifier_list e	=  e
  - 2.1.2.1.1.1	identifier_list' → , identifier_list
  - 2.1.2.2.1.1	identifier_list' → ε
  -}
-identifier_list' :: [Token] -> [Token]
-identifier_list' e@(t:ts) | sym t == DELIM ","	=  ts
+identifier_list' :: State -> State
+identifier_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
 						$> identifier_list
 			  | otherwise		=  e
 
 {-
  - 3.1.1.1.1.1	declarations → var id : type ; declarations'
  -}
-declarations :: [Token] -> [Token]
+declarations :: State -> State
 declarations e	=  e
 		$> matchSym (RES "var")
 		$> matchID
@@ -107,8 +111,8 @@ declarations e	=  e
  - 3.1.2.1.1.1	declarations' → declarations
  - 3.1.2.2.1.1	declarations' → ε
  -}
-declarations' :: [Token] -> [Token]
-declarations' e@(t:_) | sym t == RES "var"	=  e
+declarations' :: State -> State
+declarations' e | extract e == RES "var"	=  e
 					$> declarations
 		      | otherwise	=  e
 
@@ -116,8 +120,8 @@ declarations' e@(t:_) | sym t == RES "var"	=  e
  - 4.2.1.1.1.1	type → array [ num .. num ] of standard_type
  - 4.1.1.1.1.1	type → standard_type
  -}
-type_ :: [Token] -> [Token]
-type_ e@(t:ts) | sym t == RES "array"	=  ts
+type_ :: State -> State
+type_ e | extract e == RES "array"	=  e { tape = mover (tape e) }
 					$> matchSym (DELIM "[")
 					$> matchInt
 					$> matchSym (DELIM "..")
@@ -132,14 +136,14 @@ type_ e@(t:ts) | sym t == RES "array"	=  ts
  - 5.1.1.1.1.1	standard_type → integer
  - 5.2.1.1.1.1	standard_type → real
  -}
-standard_type :: [Token] -> [Token]
-standard_type (t:ts)	| sym t == RES "integer"	= ts
-			| sym t == RES "real"	= ts
+standard_type :: State -> State
+standard_type e | extract e == RES "integer"	= e { tape = mover (tape e) }
+		| extract e == RES "real"	= e { tape = mover (tape e) }
 
 {-
  - 6.1.1.1.1.1	subprogram_declarations → subprogram_declaration ; subprogram_declarations'
  -}
-subprogram_declarations :: [Token] -> [Token]
+subprogram_declarations :: State -> State
 subprogram_declarations e	=  e
 				$> subprogram_declaration
 				$> matchSym (DELIM ";")
@@ -149,15 +153,15 @@ subprogram_declarations e	=  e
  - 6.1.2.1.1.1	subprogram_declarations' → subprogram_declarations
  - 6.1.2.2.1.1	subprogram_declarations' → ε
  -}
-subprogram_declarations' :: [Token] -> [Token]
-subprogram_declarations' e@(t:_) | sym t == RES "function"	=  e
+subprogram_declarations' :: State -> State
+subprogram_declarations' e | extract e == RES "function"	=  e
 							$> subprogram_declarations
 				 | otherwise		=  e
 
 {-
  - 7.1.1.1.1.1	subprogram_declaration → subprogram_head subprogram_declaration'
  -}
-subprogram_declaration :: [Token] -> [Token]
+subprogram_declaration :: State -> State
 subprogram_declaration e	=  e
 				$> subprogram_head
 				$> subprogram_declaration'
@@ -166,8 +170,8 @@ subprogram_declaration e	=  e
  - 7.1.1.1.2.1	subprogram_declaration' → declarations subprogram_declaration''
  - 7.1.1.1.2.2	subprogram_declaration' → subprogram_declaration''
  -}
-subprogram_declaration' :: [Token] -> [Token]
-subprogram_declaration' e@(t:_)	| sym t == RES "var"	=  e
+subprogram_declaration' :: State -> State
+subprogram_declaration' e | extract e == RES "var"	=  e
 							$> declarations
 							$> subprogram_declaration''
 				| otherwise		=  e
@@ -177,8 +181,8 @@ subprogram_declaration' e@(t:_)	| sym t == RES "var"	=  e
  - 7.1.1.1.3.1	subprogram_declaration'' → subprogram_declarations compound_statement
  - 7.1.1.1.1.2	subprogram_declaration'' → compound_statement
  -}
-subprogram_declaration'' :: [Token] -> [Token]
-subprogram_declaration'' e@(t:_) | sym t == RES "function"	=  e
+subprogram_declaration'' :: State -> State
+subprogram_declaration'' e | extract e == RES "function"	=  e
 							$> subprogram_declarations
 							$> compound_statement
 				 | otherwise		=  e
@@ -187,7 +191,7 @@ subprogram_declaration'' e@(t:_) | sym t == RES "function"	=  e
 {-
  - 8.1.1.1.1.1	subprogram_head → function id subprogram_head'
  -}
-subprogram_head :: [Token] -> [Token]
+subprogram_head :: State -> State
 subprogram_head e	=  e
 			$> matchSym (RES "function")
 			$> matchID
@@ -197,8 +201,8 @@ subprogram_head e	=  e
  - 8.1.1.1.2.1	subprogram_head' → ( parameter_list ) subprogram_head'''
  - 8.1.1.1.2.2	subprogram_head' → subprogram_head'''
  -}
-subprogram_head' :: [Token] -> [Token]
-subprogram_head' e@(t:ts) | sym t == DELIM "("	=  ts
+subprogram_head' :: State -> State
+subprogram_head' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
 						$> parameter_list
 						$> matchSym (DELIM ")")
 						$> subprogram_head''
@@ -208,7 +212,7 @@ subprogram_head' e@(t:ts) | sym t == DELIM "("	=  ts
 {-
  - 8.1.1.1.3.1	subprogram_head'' → : standard_type ;
  -}
-subprogram_head'' :: [Token] -> [Token]
+subprogram_head'' :: State -> State
 subprogram_head'' e	=  e
 			$> matchSym (DELIM ":")
 			$> standard_type
@@ -217,7 +221,7 @@ subprogram_head'' e	=  e
 {-
  - 10.1.1.1.1.1	parameter_list → id : type parameter_list'
  -}
-parameter_list :: [Token] -> [Token]
+parameter_list :: State -> State
 parameter_list e	=  e
 			$> matchID
 			$> matchSym (DELIM ":")
@@ -228,15 +232,15 @@ parameter_list e	=  e
  - 10.1.2.1.1.1	parameter_list' → ; parameter_list
  - 10.1.2.2.1.1	parameter_list' → ε
  -}
-parameter_list' :: [Token] -> [Token]
-parameter_list' e@(t:ts) | sym t == DELIM ";"	=  ts
+parameter_list' :: State -> State
+parameter_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
 						$> parameter_list
 			 | otherwise		=  e
 
 {-
  - 11.1.1.1.1.1	compound_statement → begin compound_statement'
  -}
-compound_statement :: [Token] -> [Token]
+compound_statement :: State -> State
 compound_statement e	=  e
 			$> matchSym (RES "begin")
 			$> compound_statement'
@@ -245,8 +249,8 @@ compound_statement e	=  e
  - 11.1.1.1.2.1	compound_statement' → statement_list end
  - 11.1.1.1.2.2	compound_statement' → end
  -}
-compound_statement' :: [Token] -> [Token]
-compound_statement' e@(t:ts) | sym t == RES "end"   =  ts
+compound_statement' :: State -> State
+compound_statement' e| extract e == RES "end"   =  e { tape = mover (tape e) }
 			     | otherwise	=  e
 						$> statement_list
 						$> matchSym (RES "end")
@@ -254,7 +258,7 @@ compound_statement' e@(t:ts) | sym t == RES "end"   =  ts
 {-
  - 13.1.1.1.1.1	statement_list → statement statement_list'
  -}
-statement_list :: [Token] -> [Token]
+statement_list :: State -> State
 statement_list e	=  e
 			$> statement
 			$> statement_list'
@@ -263,8 +267,8 @@ statement_list e	=  e
  - 13.1.2.1.1.1	statement_list' → ; statement_list
  - 13.1.2.2.1.1	statement_list' → ε
  -}
-statement_list' :: [Token] -> [Token]
-statement_list' e@(t:ts) | sym t == DELIM ";"	=  ts
+statement_list' :: State -> State
+statement_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
 						$> statement_list
 			 | otherwise		=  e
 
@@ -274,19 +278,19 @@ statement_list' e@(t:ts) | sym t == DELIM ";"	=  ts
  - 14.5.1.1.1.1	statement → while expression do statement
  - 14.3.1.1.1.1	statement → if expression then statement statement'
  -}
-statement :: [Token] -> [Token]
-statement e@(t:ts) | sym t == RES "begin"	=  e
+statement :: State -> State
+statement e | extract e == RES "begin"	=  e
 					$> compound_statement
-		   | sym t == RES "while"	=  ts
+	    | extract e == RES "while"	=  e { tape = mover (tape e) }
 					$> expression
 					$> matchSym (RES "do")
 					$> statement
-		   | sym t == RES "if"	=  ts
+	    | extract e == RES "if"	=  e { tape = mover (tape e) }
 					$> expression
 					$> matchSym (RES "then")
 					$> statement
 					$> statement'
-		   | testID (sym t)	= e
+	    | testID (extract e)	= e
 					$> variable
 					$> matchSym ASSIGNOP
 					$> expression
@@ -297,8 +301,8 @@ statement e@(t:ts) | sym t == RES "begin"	=  e
  - 14.3.1.1.2.1	statement' → else statement
  - 14.3.1.1.2.2	statement' → ε
  -}
-statement' :: [Token] -> [Token]
-statement' e@(t:ts) | sym t == RES "else"	=  ts
+statement' :: State -> State
+statement' e | extract e == RES "else"	=  e { tape = mover (tape e) }
 					$> statement
 		    | otherwise		=  e
 
@@ -313,7 +317,7 @@ variable e	=  e
  - 15.1.1.1.2.1	variable' → [ expression ]
  - 15.1.1.1.2.1	variable' → ε
  -}
-variable' e@(t:ts) | sym t == DELIM "["	=  ts
+variable' e | extract e == DELIM "["	=  e { tape = mover (tape e) }
 					$> expression
 					$> matchSym (DELIM "]")
 		   | otherwise		=  e
@@ -321,7 +325,7 @@ variable' e@(t:ts) | sym t == DELIM "["	=  ts
 {-
  - 16.1.1.1.1.1	expression_list → expression expression_list'
  -}
-expression_list :: [Token] -> [Token]
+expression_list :: State -> State
 expression_list e	=  e
 			$> expression
 			$> expression_list'
@@ -330,15 +334,15 @@ expression_list e	=  e
  - 16.1.2.1.1.1	expression_list' → , expression_list
  - 16.1.2.2.1.1	expression_list' → ε
  -}
-expression_list' :: [Token] -> [Token]
-expression_list' e@(t:ts) | sym t == DELIM ","	=  ts
+expression_list' :: State -> State
+expression_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
 						$> expression_list
 			  | otherwise		=  e
 
 {-
  - 17.1.1.1.1.1	expression → simple_expression expression'
  -}
-expression :: [Token] -> [Token]
+expression :: State -> State
 expression e	=  e
 		$> simple_expression
 		$> expression'
@@ -347,8 +351,8 @@ expression e	=  e
  - 17.1.1.1.2.1	expression' → relop simple_expression
  - 17.1.1.1.2.2	expression' → ε
  -}
-expression' :: [Token] -> [Token]
-expression' e@(t:ts) | isRELOP (sym t)	=  ts
+expression' :: State -> State
+expression' e | isRELOP (extract e)	=  e { tape = mover (tape e) }
 					$> simple_expression
 		     | otherwise	=  e
 
@@ -356,8 +360,8 @@ expression' e@(t:ts) | isRELOP (sym t)	=  ts
  - 18.1.1.1.1.1	simple_expression → term simple_expression'
  - 18.2.1.1.1.1	simple_expression → sign term simple_expression'
  -}
-simple_expression :: [Token] -> [Token]
-simple_expression e@(t:ts) | isSIGN (sym t)	=  ts
+simple_expression :: State -> State
+simple_expression e | isSIGN (extract e)	=  e { tape = mover (tape e) }
 					$> term
 					$> simple_expression'
 			   | otherwise	=  e
@@ -368,8 +372,8 @@ simple_expression e@(t:ts) | isSIGN (sym t)	=  ts
  - 18.3.2.1.1.1	simple_expression' → addop term simple_expression'
  - 18.3.2.2.1.1	simple_expression' → ε
  -}
-simple_expression' :: [Token] -> [Token]
-simple_expression' e@(t:ts) | isADDOP (sym t)	=  ts
+simple_expression' :: State -> State
+simple_expression' e | isADDOP (extract e)	=  e { tape = mover (tape e) }
 					$> term
 					$> simple_expression'
 			    | otherwise	=  e
@@ -377,7 +381,7 @@ simple_expression' e@(t:ts) | isADDOP (sym t)	=  ts
 {-
  - 19.1.1.1.1.1	term → factor term'
  -}
-term :: [Token] -> [Token]
+term :: State -> State
 term e	=  e
 	$> factor
 	$> term'
@@ -386,8 +390,8 @@ term e	=  e
  - 19.2.2.1.1.1	term' → mulop term
  - 19.2.2.2.1.1	term' → ε
  -}
-term' :: [Token] -> [Token]
-term' e@(t:ts)	| isMULOP (sym t)	=  ts
+term' :: State -> State
+term' e	| isMULOP (extract e)	=  e { tape = mover (tape e) }
 				$> term
 		| otherwise	=  e
 
@@ -397,14 +401,14 @@ term' e@(t:ts)	| isMULOP (sym t)	=  ts
  - 20.6.1.1.1.1	factor → ( expression )
  - 20.1.1.1.1.1	factor → id factor'
  -}
-factor :: [Token] -> [Token]
-factor e@(t:ts)	| isNum (sym t)		=  ts
-		| sym t == RES "not"	=  ts
+factor :: State -> State
+factor e	| isNum (extract e)		=  e { tape = mover (tape e) }
+		| extract e == RES "not"	=  e { tape = mover (tape e) }
 					$> factor
-		| sym t == DELIM "("	=  ts
+		| extract e == DELIM "("	=  e { tape = mover (tape e) }
 					$> expression
 					$> matchSym (DELIM ")")
-		| testID (sym t)	=  e
+		| testID (extract e)	=  e
 					$> matchID
 					$> factor'
 
@@ -413,11 +417,11 @@ factor e@(t:ts)	| isNum (sym t)		=  ts
  - 20.1.1.1.2.2	factor' → [ expression ]
  - 20.1.1.1.2.3	factor' → ε
  -}
-factor' :: [Token] -> [Token]
-factor' e@(t:ts) | sym t == DELIM "("	=  ts
+factor' :: State -> State
+factor' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
 					$> expression_list
 					$> matchSym (DELIM ")")
-		 | sym t == DELIM "["	=  ts
+		 | extract e == DELIM "["	=  e { tape = mover (tape e) }
 					$> expression
 					$> matchSym (DELIM "]")
 		 | otherwise		=  e

@@ -23,7 +23,7 @@ module Token ( tokenize, reserved, isReserved ) where
 import Defs ( Symbol (..), LexErrType (UNREC) )
 
 import Data.List ( nub )
-import Tape      ( Tape(Tape), mover, cutl, left )
+import Tape      ( Tape(Tape), mover, cutl, left' )
 import Char      ( isDigit, isAlpha, isAlphaNum, isSpace )
 
 contains :: Eq a => [a] -> a -> Bool
@@ -111,7 +111,7 @@ matchWS t@(Tape _ h  _)	| isSpace h = matchWS (mover t)
 -- Match words
 matchWord :: Stream -> [Symbol]
 matchWord t@(Tape _ h _) | isAlphaNum h = matchWord (mover t)
-			 | otherwise	= wrapWord (left t) : continue t
+			 | otherwise	= wrapWord (left' t) : continue t
 
 wrapWord :: String -> Symbol
 wrapWord word	| word `elem` addopWords = ADDOP word
@@ -124,23 +124,23 @@ wrapWord word	| word `elem` addopWords = ADDOP word
 matchInt t@(Tape _ h _) | isDigit h = matchInt (mover t)
 			| h == '.'  = matchFrac (mover t)
 			| h == 'e' || h == 'E' = matchExp (mover t)
-			| otherwise = INT (left t) : continue t
+			| otherwise = INT (left' t) : continue t
 
 matchFrac t@(Tape _ h _) | isDigit h = matchFrac (mover t)
 			 | h == 'e' || h == 'E' = matchExp (mover t)
-			 | otherwise = REAL (left t) : continue t
+			 | otherwise = REAL (left' t) : continue t
 
 matchExp t@(Tape _ h _)	| h `elem` "+-" = matchExp' (mover t)
 			| otherwise	= matchExp' t
 
 matchExp' t@(Tape _ h _) | isDigit h = matchExp' (mover t)
-			 | otherwise = BIGREAL (left t) : continue t
+			 | otherwise = BIGREAL (left' t) : continue t
 
 -- Match relational operators
 matchRelOp t@(Tape _ h _) | isRelOp h		= matchRelOp' (mover t)
-			  | otherwise		= RELOP (left t) : continue t
+			  | otherwise		= RELOP (left' t) : continue t
 
-matchRelOp' t = let tok = left t in
+matchRelOp' t = let tok = left' t in
 		if tok `elem` relops
 		then RELOP tok : continue t
 		else LEXERR UNREC tok : continue t

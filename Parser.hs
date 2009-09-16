@@ -73,9 +73,9 @@ fixup :: Token -> [Token]
 fixup t = case (sym t) of
 	WHITESPACE	-> []
 	NAME n		-> [t { sym = nameCheck	n }]
-	INT i		-> [t { intCheck	i }]
-	REAL r		-> [t { realCheck	r }]
-	BIGREAL b	-> [t { bigRealCheck	b }]
+	INT i		-> [t { sym = intCheck	i }]
+	REAL r		-> [t { sym = realCheck	r }]
+	BIGREAL b	-> [t { sym = bigRealCheck	b }]
 	_		-> [t]
 
 nameCheck :: String -> Symbol

@@ -4,10 +4,14 @@
  - Consists of a left stack, a right stack, and a focus
  -}
 
-module Tape (Tape(Tape), tapify, tapify', mover, movel, cutl, cutr, right, left) where
+module Tape (Tape(Tape), tapify, tapify', mover, movel, cutl, cutr, right, left, focus, left') where
 
 type Stack a = [a]
-data Tape a = Tape (Stack a) a (Stack a)
+data Tape a = Tape { left :: Stack a,
+		     focus :: a,
+		     right :: Stack a }
+
+left' = reverse . left
 
 instance (Show a) => Show (Tape a) where
 	show (Tape l h r) = show (reverse l) ++ " <" ++ show h ++ "> " ++ show r
@@ -30,9 +34,3 @@ movel (Tape (l:ls) h    rs ) = Tape    ls  l (h:rs)
 cutl, cutr :: Tape a -> Tape a
 cutl (Tape  _ h rs ) = Tape [] h rs
 cutr (Tape ls h  _ ) = Tape ls h []
-
--- Lists corresponding to the right and left side of the tape
--- To include the focus, use right.movel or left.mover
-right, left :: Tape a -> [a]
-right (Tape  _ _ rs) = rs
-left  (Tape ls _  _) = reverse ls

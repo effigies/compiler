@@ -13,6 +13,8 @@ module Defs ( Line( Line, NoLine ),
 	      isWS, isID, isINT, isREAL, isNum, isRELOP, isADDOP, isMULOP, isSIGN)
 	where
 
+import Tape
+
 -- Line is a string with an associated number
 data Line	= Line Int String
 		| NoLine
@@ -26,7 +28,10 @@ data Token = Token {line :: Line, sym :: Symbol}
 instance Show Token where
 	show (Token l s) = show l ++ " (" ++ show s ++ ")"
 
-data State = State {tape :: (Tape Token); table :: [Symbol] }
+data State = State {tape :: (Tape Token), table :: [Symbol] }
+
+instance Show State where
+	show (State (Tape l f r) syms) = show (reverse l ++ (f:r)) ++ "\n\n" ++ show syms
 
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
