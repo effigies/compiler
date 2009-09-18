@@ -55,7 +55,7 @@ program' e | extract e == RES "var"	=  e
 	   | extract e == RES "function"
 	  || extract e == RES "begin"	=  e
 					$> program''
---		 | otherwise
+	   | otherwise			=  syntaxErr ["var", "function", "begin"] e
 
 {-
  - 1.1.1.1.3.1	program'' → subprogram_declarations program'''
@@ -67,7 +67,7 @@ program'' e | extract e == RES "function"	=  e
 						$> program'''
 	    | extract e == RES "begin"		=  e
 						$> program'''
---		  | otherwise
+	    | otherwise				=  syntaxErr ["function", "begin"] e
 
 {-
  - 1.1.1.1.4.1	program''' → compound_statement .
@@ -93,7 +93,8 @@ identifier_list e	=  e
 identifier_list' :: State -> State
 identifier_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
 						$> identifier_list
-			  | otherwise		=  e
+		   | extract e == DELIM ")"	=  e
+		   | otherwise			=  syntaxErr [",", ")"] e
 
 {-
  - 3.1.1.1.1.1	declarations → var id : type ; declarations'
@@ -113,8 +114,10 @@ declarations e	=  e
  -}
 declarations' :: State -> State
 declarations' e | extract e == RES "var"	=  e
-					$> declarations
-		      | otherwise	=  e
+						$> declarations
+		| extract e == RES "function"
+	       || extract e == RES "begin"	=  e
+		| otherwise			=  syntaxErr ["var", "function", "begin"] e
 
 {-
  - 4.2.1.1.1.1	type → array [ num .. num ] of standard_type
@@ -129,8 +132,10 @@ type_ e | extract e == RES "array"	=  e { tape = mover (tape e) }
 					$> matchSym (DELIM "]")
 					$> matchSym (RES "of")
 					$> standard_type
-	      | otherwise		=  e
+	| extract e == RES "integer"
+       || extract e == RES "real"	=  e
 					$> standard_type
+	| otherwise			=  syntaxErr ["array", "integer", "real"] e
 
 {-
  - 5.1.1.1.1.1	standard_type → integer
@@ -139,6 +144,7 @@ type_ e | extract e == RES "array"	=  e { tape = mover (tape e) }
 standard_type :: State -> State
 standard_type e | extract e == RES "integer"	= e { tape = mover (tape e) }
 		| extract e == RES "real"	= e { tape = mover (tape e) }
+		| otherwise			= syntaxErr ["integer", "real"] e
 
 {-
  - 6.1.1.1.1.1	subprogram_declarations → subprogram_declaration ; subprogram_declarations'
@@ -155,8 +161,9 @@ subprogram_declarations e	=  e
  -}
 subprogram_declarations' :: State -> State
 subprogram_declarations' e | extract e == RES "function"	=  e
-							$> subprogram_declarations
-				 | otherwise		=  e
+								$> subprogram_declarations
+			   | extract e == RES "begin"		=  e
+			   | otherwise				=  syntaxErr ["function", "begin"] e
 
 {-
  - 7.1.1.1.1.1	subprogram_declaration → subprogram_head subprogram_declaration'
@@ -174,8 +181,10 @@ subprogram_declaration' :: State -> State
 subprogram_declaration' e | extract e == RES "var"	=  e
 							$> declarations
 							$> subprogram_declaration''
-				| otherwise		=  e
+			  | extract e == RES "function"
+			 || extract e == RES "begin"	=  e
 							$> subprogram_declaration''
+			  | otherwise			=  syntaxErr ["var", "function", "begin"] e
 
 {-
  - 7.1.1.1.3.1	subprogram_declaration'' → subprogram_declarations compound_statement
@@ -183,10 +192,11 @@ subprogram_declaration' e | extract e == RES "var"	=  e
  -}
 subprogram_declaration'' :: State -> State
 subprogram_declaration'' e | extract e == RES "function"	=  e
-							$> subprogram_declarations
-							$> compound_statement
-				 | otherwise		=  e
-							$> compound_statement
+								$> subprogram_declarations
+								$> compound_statement
+			   | extract e == RES "begin"		=  e
+								$> compound_statement
+			   | otherwise				=  syntaxErr ["function", "begin"] e
 
 {-
  - 8.1.1.1.1.1	subprogram_head → function id subprogram_head'
@@ -206,8 +216,9 @@ subprogram_head' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
 						$> parameter_list
 						$> matchSym (DELIM ")")
 						$> subprogram_head''
-			  | otherwise		=  e
+		   | extract e == DELIM ":"	=  e
 						$> subprogram_head''
+		   | otherwise			=  syntaxErr ["(", ":"] e
 
 {-
  - 8.1.1.1.3.1	subprogram_head'' → : standard_type ;
@@ -235,7 +246,8 @@ parameter_list e	=  e
 parameter_list' :: State -> State
 parameter_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
 						$> parameter_list
-			 | otherwise		=  e
+		  | extract e == DELIM ")"	=  e
+		  | otherwise			=  syntaxErr [";", ")"] e
 
 {-
  - 11.1.1.1.1.1	compound_statement → begin compound_statement'
@@ -250,10 +262,14 @@ compound_statement e	=  e
  - 11.1.1.1.2.2	compound_statement' → end
  -}
 compound_statement' :: State -> State
-compound_statement' e| extract e == RES "end"   =  e { tape = mover (tape e) }
-			     | otherwise	=  e
+compound_statement' e | extract e == RES "end"	=  e { tape = mover (tape e) }
+		      | testID (extract e)	
+		     || extract e == RES "begin"
+		     || extract e == RES "while"
+		     || extract e == RES "if"	=  e
 						$> statement_list
 						$> matchSym (RES "end")
+		      | otherwise		=  syntaxErr ["end", "begin", "while", "if", "an identifier"] e
 
 {-
  - 13.1.1.1.1.1	statement_list → statement statement_list'
@@ -270,7 +286,8 @@ statement_list e	=  e
 statement_list' :: State -> State
 statement_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
 						$> statement_list
-			 | otherwise		=  e
+		  | extract e == RES "end"	=  e
+		  | otherwise			=  syntaxErr ["end", ";"] e
 
 {-
  - 14.1.1.1.1.1	statement → variable assignop expression
@@ -294,8 +311,7 @@ statement e | extract e == RES "begin"	=  e
 					$> variable
 					$> matchSym ASSIGNOP
 					$> expression
---		   | otherwise		= syntaxErr t ["begin", "while", "if",
---							"an identifier"]
+	    | otherwise			=  syntaxErr ["begin", "while", "if", "an identifier"] e
 
 {-
  - 14.3.1.1.2.1	statement' → else statement
@@ -304,7 +320,9 @@ statement e | extract e == RES "begin"	=  e
 statement' :: State -> State
 statement' e | extract e == RES "else"	=  e { tape = mover (tape e) }
 					$> statement
-		    | otherwise		=  e
+	     | extract e == DELIM ";"
+	    || extract e == RES "end"	=  e
+	     | otherwise		=  syntaxErr ["else", ";", "end"] e
 
 {-
  - 15.1.1.1.1.1	variable → id variable'
@@ -320,7 +338,8 @@ variable e	=  e
 variable' e | extract e == DELIM "["	=  e { tape = mover (tape e) }
 					$> expression
 					$> matchSym (DELIM "]")
-		   | otherwise		=  e
+	    | extract e == ASSIGNOP	=  e
+	    | otherwise			=  syntaxErr ["[", ":="] e
 
 {-
  - 16.1.1.1.1.1	expression_list → expression expression_list'
@@ -337,7 +356,8 @@ expression_list e	=  e
 expression_list' :: State -> State
 expression_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
 						$> expression_list
-			  | otherwise		=  e
+		   | extract e == DELIM "("	=  e
+		   | otherwise			=  syntaxErr [",", "("] e
 
 {-
  - 17.1.1.1.1.1	expression → simple_expression expression'
@@ -354,7 +374,17 @@ expression e	=  e
 expression' :: State -> State
 expression' e | isRELOP (extract e)	=  e { tape = mover (tape e) }
 					$> simple_expression
-		     | otherwise	=  e
+	      | extract e == DELIM ")"
+	     || extract e == DELIM ";"
+	     || extract e == DELIM ","
+	     || extract e == DELIM "]"
+	     || extract e == RES "end"
+	     || extract e == RES "do"
+	     || extract e == RES "then"
+	     || extract e == RES "else"	=  e
+	      | otherwise		=  syntaxErr
+		["a relational operator ('>', '<', '=', '<=', '>=', '<>')",
+		 ")", "]", ";", ",", "end", "do", "then", "else"] e
 
 {-
  - 18.1.1.1.1.1	simple_expression → term simple_expression'
@@ -362,11 +392,16 @@ expression' e | isRELOP (extract e)	=  e { tape = mover (tape e) }
  -}
 simple_expression :: State -> State
 simple_expression e | isSIGN (extract e)	=  e { tape = mover (tape e) }
-					$> term
-					$> simple_expression'
-			   | otherwise	=  e
-					$> term
-					$> simple_expression'
+						$> term
+						$> simple_expression'
+		    | testID (extract e)
+		   || extract e == DELIM "("
+		   || isNum (extract e)
+		   || extract e == RES "not"	=  e
+						$> term
+						$> simple_expression'
+		    | otherwise			=  syntaxErr
+			["+", "-", "an identifier", "a number", "(", "not"] e
 
 {-
  - 18.3.2.1.1.1	simple_expression' → addop term simple_expression'
@@ -374,10 +409,21 @@ simple_expression e | isSIGN (extract e)	=  e { tape = mover (tape e) }
  -}
 simple_expression' :: State -> State
 simple_expression' e | isADDOP (extract e)	=  e { tape = mover (tape e) }
-					$> term
-					$> simple_expression'
-			    | otherwise	=  e
-
+						$> term
+						$> simple_expression'
+		     | extract e == DELIM ")"
+		    || extract e == DELIM ";"
+		    || extract e == DELIM ","
+		    || extract e == DELIM "]"
+		    || extract e == RES "end"
+		    || extract e == RES "do"
+		    || extract e == RES "then"
+		    || extract e == RES "else"
+		    || isRELOP (extract e)	=  e
+		     | otherwise		=  syntaxErr
+			["a relational operator ('>', '<', '=', '<=', '>='," ++
+			 " '<>')", "an addition operator ('+', '-', 'or')",
+			 ")", "]", ";", ",", "end", "do", "then", "else"] e
 {-
  - 19.1.1.1.1.1	term → factor term'
  -}
@@ -393,7 +439,20 @@ term e	=  e
 term' :: State -> State
 term' e	| isMULOP (extract e)	=  e { tape = mover (tape e) }
 				$> term
-		| otherwise	=  e
+	| extract e == DELIM ")"
+       || extract e == DELIM ";"
+       || extract e == DELIM ","
+       || extract e == DELIM "]"
+       || extract e == RES "end"
+       || extract e == RES "do"
+       || extract e == RES "then"
+       || extract e == RES "else"
+       || isRELOP (extract e)	=  e
+	| otherwise		=  syntaxErr
+		["a relational operator ('>', '<', '=', '<=', '>=', '<>')",
+		 "an addition operator ('+', '-', 'or')",
+		 "a multiplicative operator ('*', '/', 'div', 'mod', 'and')",
+		 ")", "]", ";", ",", "end", "do", "then", "else"] e
 
 {-
  - 20.4.1.1.1.1	factor → num
@@ -403,14 +462,15 @@ term' e	| isMULOP (extract e)	=  e { tape = mover (tape e) }
  -}
 factor :: State -> State
 factor e	| isNum (extract e)		=  e { tape = mover (tape e) }
-		| extract e == RES "not"	=  e { tape = mover (tape e) }
-					$> factor
+		| testID (extract e) 		=  e { tape = mover (tape e) }
+						$> factor'
 		| extract e == DELIM "("	=  e { tape = mover (tape e) }
-					$> expression
-					$> matchSym (DELIM ")")
-		| testID (extract e)	=  e
-					$> matchID
-					$> factor'
+						$> expression
+						$> matchSym (DELIM ")")
+		| extract e == RES "not"	=  e { tape = mover (tape e) }
+						$> factor
+		| otherwise			= syntaxErr
+			["a number", "an identifier", "(", "not"] e
 
 {-
  - 20.1.1.1.2.1	factor' → ( expression_list )
@@ -421,7 +481,21 @@ factor' :: State -> State
 factor' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
 					$> expression_list
 					$> matchSym (DELIM ")")
-		 | extract e == DELIM "["	=  e { tape = mover (tape e) }
+	  | extract e == DELIM "["	=  e { tape = mover (tape e) }
 					$> expression
 					$> matchSym (DELIM "]")
-		 | otherwise		=  e
+	  | extract e == DELIM ")"
+	 || extract e == DELIM ";"
+	 || extract e == DELIM ","
+	 || extract e == DELIM "]"
+	 || extract e == RES "end"
+	 || extract e == RES "do"
+	 || extract e == RES "then"
+	 || extract e == RES "else"
+	 || isRELOP (extract e)
+	 || isMULOP (extract e)		=  e
+	  | otherwise			=  syntaxErr
+		["a relational operator ('>', '<', '=', '<=', '>=', '<>')",
+		 "an addition operator ('+', '-', 'or')",
+		 "a multiplicative operator ('*', '/', 'div', 'mod', 'and')",
+		 ")", "]", ";", ",", "end", "do", "then", "else"] e

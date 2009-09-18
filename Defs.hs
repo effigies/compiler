@@ -3,11 +3,10 @@
  -}
 
 module Defs ( Line( Line, NoLine ),
-	      Token( Token ), line, sym,
+	      Token( Token, SYNTAXERR ), line, sym,
 	      State( State ), tape, table,
 	      Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, NAME,
-			ID, REF, RES, BIGREAL, REAL, INT, LEXERR, SYNTAXERR,
-			DOT, EOF),
+			ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF),
 	      LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
 			LONGID),
 	      isWS, isID, isINT, isREAL, isNum, isRELOP, isADDOP, isMULOP, isSIGN)
@@ -21,7 +20,8 @@ data Line	= Line Int String
 	deriving (Show, Eq)
 
 -- Token is a symbol and its containing line
-data Token = Token {line :: Line, sym :: Symbol}
+data Token	= Token {line :: Line, sym :: Symbol}
+		| SYNTAXERR [String] [Token]
 -- Considering adding the symbol table to the token
 -- data Token = Token {line :: Line, sym :: Symbol, tab :: [Symbol]}
 
@@ -56,7 +56,6 @@ data Symbol	=  WHITESPACE			-- Spaces, tabs, newlines
 
 		-- Lexical errors require we retain both the token and
 		|  LEXERR		LexErrType String
-		|  SYNTAXERR		String [Symbol]
 	deriving Show
 
 -- In case we want to be able to compare
