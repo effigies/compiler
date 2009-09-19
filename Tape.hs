@@ -6,7 +6,7 @@
 
 module Tape (Tape(Tape), tapify, tapify', mover, movel, cutl, cutr, right, left, focus, left') where
 
-type Stack a = [a]
+type Stack = []
 data Tape a = Tape { left :: Stack a,
 		     focus :: a,
 		     right :: Stack a }
@@ -20,7 +20,7 @@ instance (Show a) => Show (Tape a) where
 tapify :: [a] -> Tape a
 tapify (x:xs) = Tape [] x xs
 
-tapify' s = tapify (s ++ "\0")
+tapify' = tapify . (++ "\0")
 
 -- Motions on a tape
 mover, movel :: (Show a) => Tape a -> Tape a

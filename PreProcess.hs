@@ -56,9 +56,9 @@ realCheck real = let (whole, dot:frac) = span (/= '.') real in
 		else REAL real
 
 bigRealCheck :: String -> Symbol
-bigRealCheck bigReal = let (real, e:exp)     = span (not . (`elem` "eE")) bigReal
+bigRealCheck bigReal = let (real, e:exp)     = break (`elem` "eE") bigReal
 			   (whole, frac) = span (/= '.') real
-			   exp' = if (head exp) `elem` "+-"
+			   exp' = if head exp `elem` "+-"
 				  then tail exp
 				  else exp
 		in

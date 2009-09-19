@@ -22,8 +22,8 @@ samplel = [	"program example(input, output);",
 
 sample = unlines samplel
 
-samplet = tapify (sample)
+samplet = tapify sample
 
-samplets = map tapify (map (++ "\0") samplel)
+samplets = map (tapify . (++ "\0")) samplel
 
 out = preprocess reserved (tokenize samplet)

@@ -18,11 +18,11 @@ extract :: State -> Symbol
 extract (State (Tape _ (Token _ s) _) _)	= s
 
 matchErr :: String -> Symbol -> Line -> State
-matchErr e EOF _ = error ("Expected " ++ (show e) ++ "; received EOF.")
-matchErr e g l = error ("Expected " ++ (show e) ++ "; received " ++ (show g) ++ ".\n" ++ (show l))
+matchErr e EOF _ = error ("Expected " ++ show e ++ "; received EOF.")
+matchErr e g l = error ("Expected " ++ show e ++ "; received " ++ show g ++ ".\n" ++ show l)
 
 syntaxErr :: [Symbol] -> State -> State
-syntaxErr valid (State (Tape l f r) s) = (State (mover (Tape l (SYNTAXERR valid [f]) r)) s)
+syntaxErr valid (State (Tape l f r) s) = State (mover (Tape l (SYNTAXERR valid [f]) r)) s
 
 {- matchSym - match exact symbols
  - Not for use with generic symbols (like IDs or literals)
