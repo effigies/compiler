@@ -6,7 +6,8 @@ module Defs ( Line( Line, NoLine ),
 	      Token( Token, SYNTAXERR ), line, sym,
 	      State( State ), tape, table,
 	      Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, NAME,
-			ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF),
+			ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF,
+			NUM, SIGN),
 	      LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
 			LONGID),
 	      isWS, isID, isINT, isREAL, isNum, isRELOP, isADDOP, isMULOP, isSIGN)
@@ -21,7 +22,7 @@ data Line	= Line Int String
 
 -- Token is a symbol and its containing line
 data Token	= Token {line :: Line, sym :: Symbol}
-		| SYNTAXERR [String] [Token]
+		| SYNTAXERR [Symbol] [Token]
 -- Considering adding the symbol table to the token
 -- data Token = Token {line :: Line, sym :: Symbol, tab :: [Symbol]}
 
@@ -53,10 +54,36 @@ data Symbol	=  WHITESPACE			-- Spaces, tabs, newlines
 		|  INT			String	-- Integers
 		|  DOT				-- .
 		|  EOF
+		|  NUM				-- Exists entirely to show
+		|  SIGN				-- Same
 
 		-- Lexical errors require we retain both the token and
 		|  LEXERR		LexErrType String
-	deriving Show
+
+instance Show Symbol where
+	show WHITESPACE		= "WHITESPACE"
+	show ASSIGNOP		= "':='"
+	show (DELIM s)		= "'" ++ s ++ "'"
+	show (RELOP "_")	= "a relational operator ('>', '<', '=', '<=', '>=', '<>')"
+	show (RELOP s)		= "'" ++ s ++ "'"
+	show (MULOP "_")	= "a multiplicative operator ('*', '/', 'div', 'mod', 'and')"
+	show (MULOP s)		= "'" ++ s ++ "'"
+	show (ADDOP "_")	= "an addition operator ('+', '-', 'or')"
+	show (ADDOP s)		= "'" ++ s ++ "'"
+	show (NAME s)		= "'" ++ s ++ "'"
+	show (ID "_")		= "an identifier"
+	show (ID s)		= "'" ++ s ++ "'"
+	show (REF i)		= "symbol table entry " ++ show i
+	show (RES s)		= "'" ++ s ++ "'"
+	show (BIGREAL s)	= "'" ++ s ++ "'"
+	show (REAL s)		= "'" ++ s ++ "'"
+	show (INT s)		= "'" ++ s ++ "'"
+	show DOT		= "'.'"
+	show EOF		= "EOF"
+	show NUM		= "a number"
+	show SIGN		= "a sign ('+', '-')"
+	show (LEXERR t s)	= "Lexical Error (" ++ show t ++ "): " ++ show s
+--	show _			= "Unimplemented show? Sorry."
 
 -- In case we want to be able to compare
 -- (For example `mapM putStrLn (filter (/= WHITESPACE) match input)`)
