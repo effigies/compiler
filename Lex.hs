@@ -53,7 +53,7 @@ insert n id (e:es)	| id == e	= (REF n, e:es)
 --    b is the updated symbol table
 symbolTable :: [Symbol] -> [Symbol] -> ([Symbol],[Symbol])
 symbolTable table []	 = ([],table)
-symbolTable table (t:ts) = let (ref, table') = if isID t then insert 1 t table
+symbolTable table (t:ts) = let (ref, table') = if t == ID "_" then insert 1 t table
 							 else (t,table)
 			       (refs, table'') = symbolTable table' ts
 				  in (ref:refs,table'')

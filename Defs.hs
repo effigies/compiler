@@ -10,7 +10,7 @@ module Defs ( Line( Line, NoLine ),
 			NUM, SIGN),
 	      LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
 			LONGID),
-	      isWS, isID, isINT, isREAL, isNum, isRELOP, isADDOP, isMULOP, isSIGN)
+	      {-isWS, isID, isINT, isREAL, isNum, isRELOP, isADDOP, isMULOP, isSIGN-})
 	where
 
 import Tape
@@ -85,16 +85,43 @@ instance Show Symbol where
 	show (LEXERR t s)	= "Lexical Error (" ++ show t ++ "): " ++ show s
 --	show _			= "Unimplemented show? Sorry."
 
--- In case we want to be able to compare
--- (For example `mapM putStrLn (filter (/= WHITESPACE) match input)`)
 instance Eq Symbol where
+	{- Some of these make sense to have wildcards -}
+	RELOP  _	== RELOP "_"	= True
+	MULOP  _	== MULOP "_"	= True
+	ADDOP  _	== ADDOP "_"	= True
+	ADDOP "+"	== SIGN		= True
+	ADDOP "-"	== SIGN		= True
+	ID  _		== ID "_"	= True
+	REF _		== ID "_"	= True
+	BIGREAL _	== NUM		= True
+	REAL _		== NUM		= True
+	INT _		== NUM		= True
+	BIGREAL _	== BIGREAL "_"	= True
+	REAL _		== REAL "_"	= True
+	INT _		== INT "_"	= True
+	{- And reverse it... -}
+	RELOP "_"	== RELOP  _	= True
+	MULOP "_"	== MULOP  _	= True
+	ADDOP "_"	== ADDOP  _	= True
+	SIGN		== ADDOP "+"	= True
+	SIGN		== ADDOP "-"	= True
+	ID "_"		== ID  _	= True
+	ID "_"		== REF _	= True
+	NUM		== BIGREAL _	= True
+	NUM		== REAL _	= True
+	NUM		== INT _	= True
+	BIGREAL _	== BIGREAL "_"	= True
+	REAL "_"	== REAL _	= True
+	INT "_"		== INT _	= True
+	{- Now explicit equality -}
 	WHITESPACE	== WHITESPACE	= True
 	ASSIGNOP	== ASSIGNOP	= True
 	EOF		== EOF		= True
 	DOT		== DOT		= True
-	RELOP a		== RELOP b	= a == b
-	MULOP a		== MULOP b	= a == b
-	ADDOP a		== ADDOP b	= a == b
+	RELOP  a	== RELOP  b	= a == b
+	MULOP  a	== MULOP  b	= a == b
+	ADDOP  a	== ADDOP  b	= a == b
 	NAME a		== NAME b	= a == b
 	ID a		== ID b		= a == b
 	RES a		== RES b	= a == b
@@ -103,6 +130,7 @@ instance Eq Symbol where
 	REAL a		== REAL b	= a == b
 	INT a		== INT b	= a == b
 	DELIM a		== DELIM b	= a == b
+	{- And everything else fails -}
 	_		== _		= False
 
 isWS :: Symbol -> Bool

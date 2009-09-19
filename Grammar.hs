@@ -32,12 +32,12 @@ import Tape
 
 program :: State -> State
 program e	=  e
-		$> matchSym (RES "program")
-		$> matchID
-		$> matchSym (DELIM "(")
+		$> match (RES "program")
+		$> match (ID "_")
+		$> match (DELIM "(")
 		$> identifier_list
-		$> matchSym (DELIM ")")
-		$> matchSym (DELIM ";")
+		$> match (DELIM ")")
+		$> match (DELIM ";")
 		$> program'
 
 {-
@@ -48,12 +48,12 @@ program' :: State -> State
 program' e | extract e == RES "var"	=  e
 					$> declarations
 					$> program''
-	   | extract e == RES "function"
-	  || extract e == RES "begin"	=  e
+	   | extract e `elem` first	=  e
 					$> program''
 	   | otherwise			=  syntaxErr first e
 	where
-		first = [RES "var", RES "function", RES "begin"]
+		first = [RES "function", RES "begin", RES "var"]
+		follow = [EOF]
 
 {-
  - 1.1.1.1.3.1	program'' → subprogram_declarations program'''
@@ -68,6 +68,7 @@ program'' e | extract e == RES "function"	=  e
 	    | otherwise				=  syntaxErr first e
 	where
 		first = [RES "function", RES "begin"]
+		follow = [EOF]
 
 {-
  - 1.1.1.1.4.1	program''' → compound_statement .
@@ -75,17 +76,22 @@ program'' e | extract e == RES "function"	=  e
 program''' :: State -> State
 program''' e	=  e
 		$> compound_statement
-		$> matchSym DOT
+		$> match DOT
 		$> matchEOF
-	
+	where
+		first = [RES "begin"]
+		follow = [EOF]
 
 {-
  - 2.1.1.1.1.1	identifier_list → id identifier_list'
  -}
 identifier_list :: State -> State
 identifier_list e	=  e
-			$> matchID
+			$> match (ID "_")
 			$> identifier_list'
+	where
+		first = [ID "_"]
+		follow = [DELIM ")"]
 
 {-
  - 2.1.2.1.1.1	identifier_list' → , identifier_list
@@ -106,12 +112,15 @@ identifier_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
  -}
 declarations :: State -> State
 declarations e	=  e
-		$> matchSym (RES "var")
-		$> matchID
-		$> matchSym (DELIM ":")
+		$> match (RES "var")
+		$> match (ID "_")
+		$> match (DELIM ":")
 		$> type_		-- Since type is a Haskell keyword
-		$> matchSym (DELIM ";")
+		$> match (DELIM ";")
 		$> declarations'
+	where
+		first = [RES "var"]
+		follow = [RES "function", RES "begin"]
 
 {-
  - 3.1.2.1.1.1	declarations' → declarations
@@ -133,30 +142,30 @@ declarations' e | extract e == RES "var"	=  e
  -}
 type_ :: State -> State
 type_ e | extract e == RES "array"	=  e { tape = mover (tape e) }
-					$> matchSym (DELIM "[")
-					$> matchInt
-					$> matchSym (DELIM "..")
-					$> matchInt
-					$> matchSym (DELIM "]")
-					$> matchSym (RES "of")
+					$> match (DELIM "[")
+					$> match (INT "_")
+					$> match (DELIM "..")
+					$> match (INT "_")
+					$> match (DELIM "]")
+					$> match (RES "of")
 					$> standard_type
-	| extract e == RES "integer"
-       || extract e == RES "real"	=  e
+	| extract e `elem` first	=  e
 					$> standard_type
 	| otherwise			=  syntaxErr first e
 	where
-		first = [RES "array", RES "integer", RES "real"]
+		first = [RES "integer", RES "real", RES "array"]
+		follow = [DELIM ";", DELIM ")"]
 
 {-
  - 5.1.1.1.1.1	standard_type → integer
  - 5.2.1.1.1.1	standard_type → real
  -}
 standard_type :: State -> State
-standard_type e | extract e == RES "integer"	= e { tape = mover (tape e) }
-		| extract e == RES "real"	= e { tape = mover (tape e) }
+standard_type e | extract e `elem` first	= e { tape = mover (tape e) }
 		| otherwise			= syntaxErr first e
 	where
 		first = [RES "integer", RES "real"]
+		follow = [DELIM ";", DELIM ")"]
 
 {-
  - 6.1.1.1.1.1	subprogram_declarations → subprogram_declaration ; subprogram_declarations'
@@ -164,8 +173,11 @@ standard_type e | extract e == RES "integer"	= e { tape = mover (tape e) }
 subprogram_declarations :: State -> State
 subprogram_declarations e	=  e
 				$> subprogram_declaration
-				$> matchSym (DELIM ";")
+				$> match (DELIM ";")
 				$> subprogram_declarations'
+	where
+		first = [RES "function"]
+		follow = [RES "begin"]
 
 {-
  - 6.1.2.1.1.1	subprogram_declarations' → subprogram_declarations
@@ -188,6 +200,9 @@ subprogram_declaration :: State -> State
 subprogram_declaration e	=  e
 				$> subprogram_head
 				$> subprogram_declaration'
+	where
+		first = [RES "function"]
+		follow = [DELIM ";"]
 
 {-
  - 7.1.1.1.2.1	subprogram_declaration' → declarations subprogram_declaration''
@@ -197,13 +212,12 @@ subprogram_declaration' :: State -> State
 subprogram_declaration' e | extract e == RES "var"	=  e
 							$> declarations
 							$> subprogram_declaration''
-			  | extract e `elem` follow	=  e
+			  | extract e `elem` first	=  e
 							$> subprogram_declaration''
-			  | otherwise			=  syntaxErr valid e
+			  | otherwise			=  syntaxErr first e
 	where
-		first = [RES "var"]
-		follow = [RES "function", RES "begin"]
-		valid = first ++ follow
+		first = [RES "function", RES "begin", RES "var"]
+		follow = [DELIM ";"]
 
 {-
  - 7.1.1.1.3.1	subprogram_declaration'' → subprogram_declarations compound_statement
@@ -218,15 +232,19 @@ subprogram_declaration'' e | extract e == RES "function"	=  e
 			   | otherwise				=  syntaxErr first e
 	where
 		first = [RES "function", RES "begin"]
+		follow = [DELIM ";"]
 
 {-
  - 8.1.1.1.1.1	subprogram_head → function id subprogram_head'
  -}
 subprogram_head :: State -> State
 subprogram_head e	=  e
-			$> matchSym (RES "function")
-			$> matchID
+			$> match (RES "function")
+			$> match (ID "_")
 			$> subprogram_head'
+	where
+		first = [RES "function"]
+		follow = [RES "var", RES "function", RES "begin"]
 
 {-
  - 8.1.1.1.2.1	subprogram_head' → ( parameter_list ) subprogram_head'''
@@ -235,32 +253,39 @@ subprogram_head e	=  e
 subprogram_head' :: State -> State
 subprogram_head' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
 						$> parameter_list
-						$> matchSym (DELIM ")")
+						$> match (DELIM ")")
 						$> subprogram_head''
 		   | extract e == DELIM ":"	=  e
 						$> subprogram_head''
 		   | otherwise			=  syntaxErr first e
 	where
-		 first = [DELIM "(", DELIM ":"]
+		first = [DELIM "(", DELIM ":"]
+		follow = [RES "var", RES "function", RES "begin"]
 
 {-
  - 8.1.1.1.3.1	subprogram_head'' → : standard_type ;
  -}
 subprogram_head'' :: State -> State
 subprogram_head'' e	=  e
-			$> matchSym (DELIM ":")
+			$> match (DELIM ":")
 			$> standard_type
-			$> matchSym (DELIM ";")
+			$> match (DELIM ";")
+	where
+		first = [DELIM ":"]
+		follow = [RES "var", RES "function", RES "begin"]
 
 {-
  - 10.1.1.1.1.1	parameter_list → id : type parameter_list'
  -}
 parameter_list :: State -> State
 parameter_list e	=  e
-			$> matchID
-			$> matchSym (DELIM ":")
+			$> match (ID "_")
+			$> match (DELIM ":")
 			$> type_
 			$> parameter_list'
+	where
+		first = [ID "_"]
+		follow = [DELIM ")"]
 
 {-
  - 10.1.2.1.1.1	parameter_list' → ; parameter_list
@@ -281,8 +306,11 @@ parameter_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
  -}
 compound_statement :: State -> State
 compound_statement e	=  e
-			$> matchSym (RES "begin")
+			$> match (RES "begin")
 			$> compound_statement'
+	where
+		first = [RES "begin"]
+		follow = [DELIM ".", DELIM ";", RES "end", RES "else"]
 
 {-
  - 11.1.1.1.2.1	compound_statement' → statement_list end
@@ -290,15 +318,13 @@ compound_statement e	=  e
  -}
 compound_statement' :: State -> State
 compound_statement' e | extract e == RES "end"	=  e { tape = mover (tape e) }
-		      | testID (extract e)	
-		     || extract e == RES "begin"
-		     || extract e == RES "while"
-		     || extract e == RES "if"	=  e
+		      | extract e `elem` first	=  e
 						$> statement_list
-						$> matchSym (RES "end")
+						$> match (RES "end")
 		      | otherwise		=  syntaxErr first e
 	where
-		first = [RES "end", RES "begin", RES "while", RES "if", ID "_"]
+		first = [ID "_", RES "begin", RES "while", RES "if", RES "end"]
+		follow = [DELIM ".", DELIM ";", RES "end", RES "else"]
 
 {-
  - 13.1.1.1.1.1	statement_list → statement statement_list'
@@ -307,6 +333,9 @@ statement_list :: State -> State
 statement_list e	=  e
 			$> statement
 			$> statement_list'
+	where
+		first = [ID "_", RES "begin", RES "while", RES "if"]
+		follow = [RES "end"]
 
 {-
  - 13.1.2.1.1.1	statement_list' → ; statement_list
@@ -315,7 +344,7 @@ statement_list e	=  e
 statement_list' :: State -> State
 statement_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
 						$> statement_list
-		  | extract e == RES "end"	=  e
+		  | extract e `elem` follow	=  e
 		  | otherwise			=  syntaxErr valid e
 	where
 		first = [DELIM ";"]
@@ -333,20 +362,21 @@ statement e | extract e == RES "begin"	=  e
 					$> compound_statement
 	    | extract e == RES "while"	=  e { tape = mover (tape e) }
 					$> expression
-					$> matchSym (RES "do")
+					$> match (RES "do")
 					$> statement
 	    | extract e == RES "if"	=  e { tape = mover (tape e) }
 					$> expression
-					$> matchSym (RES "then")
+					$> match (RES "then")
 					$> statement
 					$> statement'
-	    | testID (extract e)	= e
+	    | extract e == ID "_"	= e
 					$> variable
-					$> matchSym ASSIGNOP
+					$> match ASSIGNOP
 					$> expression
 	    | otherwise			=  syntaxErr first e
 	where
 		first = [RES "begin", RES "while", RES "if", ID "_"]
+		follow = [RES "end", RES "else", DELIM ";"]
 
 {-
  - 14.3.1.1.2.1	statement' → else statement
@@ -359,15 +389,18 @@ statement' e | extract e == RES "else"	=  e { tape = mover (tape e) }
 	     | otherwise		=  syntaxErr valid e
 	where
 		first = [RES "else"]
-		follow = [DELIM ";", RES "end"]
-		valid = first ++ follow
+		follow = [DELIM ";", RES "end", RES "else"]
+		valid = follow -- first is a subset of follow
 
 {-
  - 15.1.1.1.1.1	variable → id variable'
  -}
 variable e	=  e
-		$> matchID
+		$> match (ID "_")
 		$> variable'
+	where
+		first = [ID "_"]
+		follow = [ASSIGNOP]
 
 {-
  - 15.1.1.1.2.1	variable' → [ expression ]
@@ -375,8 +408,8 @@ variable e	=  e
  -}
 variable' e | extract e == DELIM "["	=  e { tape = mover (tape e) }
 					$> expression
-					$> matchSym (DELIM "]")
-	    | extract e == ASSIGNOP	=  e
+					$> match (DELIM "]")
+	    | extract e `elem` follow	=  e
 	    | otherwise			=  syntaxErr valid e
 	where
 		first = [DELIM "["]
@@ -390,6 +423,9 @@ expression_list :: State -> State
 expression_list e	=  e
 			$> expression
 			$> expression_list'
+	where
+		first = [NUM, RES "not", DELIM "(", ID "_", SIGN]
+		follow = [DELIM ")"]
 
 {-
  - 16.1.2.1.1.1	expression_list' → , expression_list
@@ -412,13 +448,16 @@ expression :: State -> State
 expression e	=  e
 		$> simple_expression
 		$> expression'
-
+	where
+		first = [NUM, RES "not", DELIM "(", ID "_", SIGN]
+		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
+			  RES "end", RES "do", RES "then", RES "else"]
 {-
  - 17.1.1.1.2.1	expression' → relop simple_expression
  - 17.1.1.1.2.2	expression' → ε
  -}
 expression' :: State -> State
-expression' e | isRELOP (extract e)	=  e { tape = mover (tape e) }
+expression' e | extract e == RELOP "_"	=  e { tape = mover (tape e) }
 					$> simple_expression
 	      | extract e `elem` follow	=  e
 	      | otherwise		=  syntaxErr valid e
@@ -433,7 +472,7 @@ expression' e | isRELOP (extract e)	=  e { tape = mover (tape e) }
  - 18.2.1.1.1.1	simple_expression → sign term simple_expression'
  -}
 simple_expression :: State -> State
-simple_expression e | isSIGN (extract e)	=  e { tape = mover (tape e) }
+simple_expression e | extract e == SIGN		=  e { tape = mover (tape e) }
 						$> term
 						$> simple_expression'
 		    | extract e `elem` first	=  e
@@ -441,14 +480,16 @@ simple_expression e | isSIGN (extract e)	=  e { tape = mover (tape e) }
 						$> simple_expression'
 		    | otherwise			=  syntaxErr first e
 	where
-		first = [ID "_", DELIM "(", NUM, RES "not", SIGN]
+		first = [ID "_", DELIM "(", RES "not", NUM, SIGN]
+		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
+			  RES "end", RES "then", RES "else", RELOP "_"]
 
 {-
  - 18.3.2.1.1.1	simple_expression' → addop term simple_expression'
  - 18.3.2.2.1.1	simple_expression' → ε
  -}
 simple_expression' :: State -> State
-simple_expression' e | isADDOP (extract e)	=  e { tape = mover (tape e) }
+simple_expression' e | extract e == ADDOP "_"	=  e { tape = mover (tape e) }
 						$> term
 						$> simple_expression'
 		     | extract e `elem` follow	=  e
@@ -465,13 +506,18 @@ term :: State -> State
 term e	=  e
 	$> factor
 	$> term'
+	where
+		first = [ID "_", DELIM "(", RES "not", NUM]
+		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
+			  RES "end", RES "do", RES "then", RES "else",
+			  RELOP "_", ADDOP "_"]
 
 {-
  - 19.2.2.1.1.1	term' → mulop term
  - 19.2.2.2.1.1	term' → ε
  -}
 term' :: State -> State
-term' e	| isMULOP (extract e)		=  e { tape = mover (tape e) }
+term' e	| extract e == MULOP "_"	=  e { tape = mover (tape e) }
 					$> term
 	| extract e `elem` follow	=  e
 	| otherwise			=  syntaxErr valid e
@@ -489,12 +535,12 @@ term' e	| isMULOP (extract e)		=  e { tape = mover (tape e) }
  - 20.1.1.1.1.1	factor → id factor'
  -}
 factor :: State -> State
-factor e	| isNum (extract e)		=  e { tape = mover (tape e) }
-		| testID (extract e) 		=  e { tape = mover (tape e) }
+factor e	| extract e == NUM		=  e { tape = mover (tape e) }
+		| extract e == ID "_" 		=  e { tape = mover (tape e) }
 						$> factor'
 		| extract e == DELIM "("	=  e { tape = mover (tape e) }
 						$> expression
-						$> matchSym (DELIM ")")
+						$> match (DELIM ")")
 		| extract e == RES "not"	=  e { tape = mover (tape e) }
 						$> factor
 		| otherwise			= syntaxErr first e
@@ -509,10 +555,10 @@ factor e	| isNum (extract e)		=  e { tape = mover (tape e) }
 factor' :: State -> State
 factor' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
 					$> expression_list
-					$> matchSym (DELIM ")")
+					$> match (DELIM ")")
 	  | extract e == DELIM "["	=  e { tape = mover (tape e) }
 					$> expression
-					$> matchSym (DELIM "]")
+					$> match (DELIM "]")
 	  | extract e `elem` follow	=  e
 	  | otherwise			=  syntaxErr valid e
 	where

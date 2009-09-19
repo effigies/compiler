@@ -42,7 +42,7 @@ tabulate = tabulate' []
 -- The final line prepends our token, and passes the final symbol table up
 tabulate' :: [Symbol] -> [Token] -> ([Symbol],[Token])
 tabulate' tab []     = (tab,[])
-tabulate' tab (t:ts) = let (tab',r) = if isID (sym t) then insert tab t
+tabulate' tab (t:ts) = let (tab',r) = if sym t == ID "_" then insert tab t
 						else (tab,t)
 			   (tab'',rs) = tabulate' tab' ts
 			in (tab'',r:rs)
