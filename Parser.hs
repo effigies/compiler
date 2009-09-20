@@ -9,8 +9,6 @@
 import Tape
 import Defs
 import Token
--- import PreProcess
--- import Lex
 import Grammar
 import Test
 
@@ -19,7 +17,7 @@ type LexOut = ([Symbol],[Token])
 end = Token NoLine EOF
 
 parse input = let (tab,toks) = scan input in
-	program (State (tapify (toks ++ [end])) tab)
+	program (State (tapify' end toks) tab)
 
 -- Revision of Lex. More modular.
 
@@ -27,7 +25,7 @@ scan :: [String] -> LexOut
 scan input = tabulate (zipWith Line [1..] input >>= scan' >>= fixup)
 
 scan' :: Line -> [Token]
-scan' l@(Line _ text) = map (Token l) (tokenize (tapify' text))
+scan' l@(Line _ text) = map (Token l) (tokenize (tapify' '\0' text))
 
 -- tabulate - construct symbol table, and replace IDs with REFs
 tabulate :: [Token] -> ([Symbol],[Token])

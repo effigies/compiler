@@ -6,6 +6,7 @@
 module Lex (symbolTable, insert) where
 
 import IO
+import Monad
 import Defs
 import PreProcess
 import Token
@@ -15,12 +16,12 @@ process :: Int -> [String] -> [Symbol] -> Handle -> Handle -> IO ( )
 process n rs table list tok = let next = (\t -> process (n + 1) rs t list tok)
 		in do
 			line			<- getLine
-			tape			<- return (tapify (line ++ "\0"))
+			tape			<- return (tapify' '\0' line)
 			tokens  		<- return (tokenize tape) 
 			tokens'			<- return (preprocess rs tokens)
 			(tokens'', table')	<- return (symbolTable table tokens')
 			hPutStrLn list ((shows n . ('\t':)) line)
-			if length line > 72 then hPutStrLn list "Line too long" else return ()
+			when (length line > 72) $ hPutStrLn list "Line too long"
 			writeList list tokens'' table'
 			writeTokens tok n tokens'' table'
 --			hPutStrLn tok (show tokens'')
@@ -57,12 +58,6 @@ symbolTable table (t:ts) = let (ref, table') = if t == ID "_" then insert 1 t ta
 							 else (t,table)
 			       (refs, table'') = symbolTable table' ts
 				  in (ref:refs,table'')
-
---symbolTable table tokens = symbolTable' table (filter isID tokens)
---symbolTable' table []		= ([],table)
---symbolTable' table (id:ids)	= let (ref, table') = insert 1 id table
---				      (refs, table'') = symbolTable' table' ids
---				in (ref:refs,table'')
 
 main :: IO ( )
 main = do

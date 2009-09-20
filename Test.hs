@@ -24,6 +24,6 @@ sample = unlines samplel
 
 samplet = tapify sample
 
-samplets = map (tapify . (++ "\0")) samplel
+samplets = map (tapify' '\0') samplel
 
 out = preprocess reserved (tokenize samplet)

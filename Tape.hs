@@ -20,7 +20,8 @@ instance (Show a) => Show (Tape a) where
 tapify :: [a] -> Tape a
 tapify (x:xs) = Tape [] x xs
 
-tapify' = tapify . (++ "\0")
+tapify' :: a -> [a] -> Tape a
+tapify' trail = tapify . (++ [trail])
 
 -- Motions on a tape
 mover, movel :: (Show a) => Tape a -> Tape a

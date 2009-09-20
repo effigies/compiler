@@ -1,38 +1,40 @@
 {- Defs.hs
- - Compiler-specific type definitions
+ - Define compiler-related data structures
  -}
 
 module Defs ( Line( Line, NoLine ),
 	      Token( Token, SYNTAXERR ), line, sym,
 	      State( State ), tape, table,
 	      Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, NAME,
-			ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF,
-			NUM, SIGN),
+		ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN),
 	      LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
-			LONGID),
-	      {-isWS, isID, isINT, isREAL, isNum, isRELOP, isADDOP, isMULOP, isSIGN-})
+		LONGID))
 	where
 
 import Tape
 
--- Line is a string with an associated number
+-- A Line has a line number and text. NoLine is a handy fill-in for EOF tokens.
 data Line	= Line Int String
 		| NoLine
 	deriving (Show, Eq)
 
 -- Token is a symbol and its containing line
+-- Syntax errors contain a list of valid symbols (for reporting) and a list of
+--	rejected tokens (swallowed up in panic mode).
 data Token	= Token {line :: Line, sym :: Symbol}
 		| SYNTAXERR [Symbol] [Token]
--- Considering adding the symbol table to the token
--- data Token = Token {line :: Line, sym :: Symbol, tab :: [Symbol]}
 
+-- At the moment, it seems most interesting to know the line number and symbol
 instance Show Token where
-	show (Token l s) = show l ++ " (" ++ show s ++ ")"
+	show (Token (Line n l) s) = show n ++ ": " ++ show s
 
+-- State, for inability to think of a better term, is what the parser operates
+--	on. We keep a tape of tokens so as not to consume them, and the symbol
+--	table for when lookups are necessary.
 data State = State {tape :: (Tape Token), table :: [Symbol] }
 
 instance Show State where
-	show (State (Tape l f r) syms) = show (reverse l ++ (f:r)) ++ "\n\n" ++ show syms
+	show (State t syms) = show t ++ "\n\n" ++ show syms
 
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
@@ -41,7 +43,7 @@ instance Show State where
 --   SYMBOL	= (TOKEN	,	LEXEME) -- Will match:
 data Symbol	=  WHITESPACE			-- Spaces, tabs, newlines
 		|  ASSIGNOP			-- :=
-		|  DELIM		String	-- [ ] ( ) ,
+		|  DELIM		String	-- [ ] ( ) , ;
 		|  RELOP		String	-- = <> < > <= >=
 		|  MULOP		String	-- * / div mod and
 		|  ADDOP		String	-- + - or
@@ -54,12 +56,13 @@ data Symbol	=  WHITESPACE			-- Spaces, tabs, newlines
 		|  INT			String	-- Integers
 		|  DOT				-- .
 		|  EOF
-		|  NUM				-- Exists entirely to show
+		|  NUM				-- Wildcard
 		|  SIGN				-- Same
 
-		-- Lexical errors require we retain both the token and
+		-- Lexical errors need a type along with a lexeme
 		|  LEXERR		LexErrType String
 
+{- This is intended to make debug or error output more friendly to read. -}
 instance Show Symbol where
 	show WHITESPACE		= "WHITESPACE"
 	show ASSIGNOP		= "':='"
@@ -83,7 +86,6 @@ instance Show Symbol where
 	show NUM		= "a number"
 	show SIGN		= "a sign ('+', '-')"
 	show (LEXERR t s)	= "Lexical Error (" ++ show t ++ "): " ++ show s
---	show _			= "Unimplemented show? Sorry."
 
 instance Eq Symbol where
 	{- Some of these make sense to have wildcards -}
@@ -100,7 +102,8 @@ instance Eq Symbol where
 	BIGREAL _	== BIGREAL "_"	= True
 	REAL _		== REAL "_"	= True
 	INT _		== INT "_"	= True
-	{- And reverse it... -}
+	{- And reverse it... This may not be necessary,
+	   but completeness compells me-}
 	RELOP "_"	== RELOP  _	= True
 	MULOP "_"	== MULOP  _	= True
 	ADDOP "_"	== ADDOP  _	= True
@@ -111,10 +114,10 @@ instance Eq Symbol where
 	NUM		== BIGREAL _	= True
 	NUM		== REAL _	= True
 	NUM		== INT _	= True
-	BIGREAL _	== BIGREAL "_"	= True
+	BIGREAL "_"	== BIGREAL _	= True
 	REAL "_"	== REAL _	= True
 	INT "_"		== INT _	= True
-	{- Now explicit equality -}
+	{- More standard notions of equality follow -}
 	WHITESPACE	== WHITESPACE	= True
 	ASSIGNOP	== ASSIGNOP	= True
 	EOF		== EOF		= True
@@ -133,43 +136,7 @@ instance Eq Symbol where
 	{- And everything else fails -}
 	_		== _		= False
 
-isWS :: Symbol -> Bool
-isWS WHITESPACE	= True
-isWS _		= False
-
-isID :: Symbol -> Bool
-isID (ID _)	= True
-isID _		= False
-
-isINT :: Symbol -> Bool
-isINT (INT _)	= True
-isINT _		= False
-
-isREAL :: Symbol -> Bool
-isREAL (REAL _)    = True
-isREAL (BIGREAL _) = True
-isREAL _           = False
-
-isNum :: Symbol -> Bool
-isNum s = isINT s || isREAL s
-
-isRELOP :: Symbol -> Bool
-isRELOP (RELOP _) = True
-isRELOP _         = False
-
-isADDOP :: Symbol -> Bool
-isADDOP (ADDOP _) = True
-isADDOP _         = False
-
-isMULOP :: Symbol -> Bool
-isMULOP (MULOP _) = True
-isMULOP _         = False
-
-isSIGN :: Symbol -> Bool
-isSIGN (ADDOP "+") = True
-isSIGN (ADDOP "-") = True
-isSIGN _           = False
-
+{- These are the varieties of lexical errors we can encounter -}
 data LexErrType	= UNREC
 		| LONGINT
 		| LONGWHOLE
@@ -177,6 +144,7 @@ data LexErrType	= UNREC
 		| LONGEXP
 		| LONGID
 
+{- The above are fine to type. Less fun to read. -}
 instance Show LexErrType where
 	show UNREC	= "Unrecognized Symbol"
 	show LONGINT	= "Extra Long Integer"
