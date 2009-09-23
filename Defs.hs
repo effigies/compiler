@@ -3,7 +3,7 @@
  -}
 
 module Defs ( Line( Line, NoLine ),
-	      Token( Token, SYNTAXERR ), line, sym,
+	      Token( Token, SYNTAXERR ), line, sym, valid, skip, extract,
 	      State( State ), tape, table,
 	      Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, NAME,
 		ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN),
@@ -22,7 +22,7 @@ data Line	= Line Int String
 -- Syntax errors contain a list of valid symbols (for reporting) and a list of
 --	rejected tokens (swallowed up in panic mode).
 data Token	= Token {line :: Line, sym :: Symbol}
-		| SYNTAXERR [Symbol] [Token]
+		| SYNTAXERR {valid :: [Symbol], skip :: [Token]}
 
 -- At the moment, it seems most interesting to know the line number and symbol
 instance Show Token where
@@ -35,6 +35,10 @@ data State = State {tape :: (Tape Token), table :: [Symbol] }
 
 instance Show State where
 	show (State t syms) = show t ++ "\n\n" ++ show syms
+
+-- This is a very common operation in a couple files, so I'll put it here.
+extract :: State -> Symbol
+extract = sym . focus . tape
 
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
