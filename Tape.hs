@@ -4,7 +4,7 @@
  - Consists of a left stack, a right stack, and a focus
  -}
 
-module Tape (Tape(Tape), tapify, tapify', mover, movel, cutl, cutr, right, left, focus, left') where
+module Tape (Tape(Tape), tapify, tapify', detape, mover, movel, cutl, cutr, right, left, focus, left') where
 
 type Stack = []
 data Tape a = Tape { left :: Stack a,
@@ -22,6 +22,9 @@ tapify (x:xs) = Tape [] x xs
 
 tapify' :: a -> [a] -> Tape a
 tapify' trail = tapify . (++ [trail])
+
+detape :: Tape a -> [a]
+detape (Tape l h r) = (reverse l) ++ [h] ++ r
 
 -- Motions on a tape
 mover, movel :: (Show a) => Tape a -> Tape a

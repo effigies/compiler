@@ -19,6 +19,32 @@ end = Token NoLine EOF
 parse input = let (tab,toks) = scan input in
 	program (State (tapify' end toks) tab)
 
+report :: State -> [String]
+report st = (detape . tape $ st) >>= report' (table st)
+
+report' :: [Symbol] -> Token -> [String]
+report' table t = case t of
+			SYNTAXERR _ _		-> handleSynErr table t
+			Token _ (LEXERR _ _)	-> [show . sym $ t]
+			_			-> []
+
+handleSynErr :: [Symbol] -> Token -> [String]
+handleSynErr table (SYNTAXERR v (c:cs)) = ("Syntax Error: Received " ++ show c
+						++ "; Expected " ++ showValid v)
+					: (cs >>= report' table) -- Catch any LEXERRs
+
+showValid :: [Symbol] -> String
+showValid [t] = show t
+showValid ts = showValid' ts
+
+showValid' :: [Symbol] -> String
+showValid' [t] = "or " ++ show t
+showValid' (t:ts) = show t ++ ", " ++ showValid' ts
+
+showt :: [Symbol] -> Token -> String
+showt table (Token (Line l _) (REF n)) = show l ++ ": " ++ show (table !! n)
+showt _ t = show t
+
 -- Revision of Lex. More modular.
 
 scan :: [String] -> LexOut
@@ -40,7 +66,7 @@ tabulate = tabulate' []
 -- The final line prepends our token, and passes the final symbol table up
 tabulate' :: [Symbol] -> [Token] -> ([Symbol],[Token])
 tabulate' tab []     = (tab,[])
-tabulate' tab (t:ts) = let (tab',r) = if sym t == ID "_" then insert tab t
+tabulate' tab (t:ts) = let (tab',r) = if isID . sym $ t then insert tab t
 						else (tab,t)
 			   (tab'',rs) = tabulate' tab' ts
 			in (tab'',r:rs)

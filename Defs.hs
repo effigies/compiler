@@ -8,7 +8,8 @@ module Defs ( Line( Line, NoLine ),
 	      Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, NAME,
 		ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN),
 	      LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
-		LONGID))
+		LONGID),
+	      isID)
 	where
 
 import Tape
@@ -26,7 +27,9 @@ data Token	= Token {line :: Line, sym :: Symbol}
 
 -- At the moment, it seems most interesting to know the line number and symbol
 instance Show Token where
-	show (Token (Line n l) s) = show n ++ ": " ++ show s
+	show (Token (Line n l) s) = "Line " ++ show n ++ ": " ++ show s
+	show (Token NoLine s) = show s
+	show (SYNTAXERR v s) = "SYNTAXERR\nValid symbols: " ++ show v ++ "\nSkipped tokens: " ++ show s
 
 -- State, for inability to think of a better term, is what the parser operates
 --	on. We keep a tape of tokens so as not to consume them, and the symbol
@@ -38,7 +41,10 @@ instance Show State where
 
 -- This is a very common operation in a couple files, so I'll put it here.
 extract :: State -> Symbol
-extract = sym . focus . tape
+extract st = case focus . tape $ st of
+		Token _ s	-> s
+		SYNTAXERR _ _	-> NULL
+--extract = sym . focus . tape
 
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
@@ -62,6 +68,7 @@ data Symbol	=  WHITESPACE			-- Spaces, tabs, newlines
 		|  EOF
 		|  NUM				-- Wildcard
 		|  SIGN				-- Same
+		|  NULL
 
 		-- Lexical errors need a type along with a lexeme
 		|  LEXERR		LexErrType String
@@ -89,23 +96,29 @@ instance Show Symbol where
 	show EOF		= "EOF"
 	show NUM		= "a number"
 	show SIGN		= "a sign ('+', '-')"
-	show (LEXERR t s)	= "Lexical Error (" ++ show t ++ "): " ++ show s
+	show (LEXERR t s)	= "Lexical Error (" ++ show t ++ "): " ++ s
+	show NULL		= "NULL (YOU SHOULDN'T EVER SEE THIS)"
 
 instance Eq Symbol where
 	{- Some of these make sense to have wildcards -}
-	RELOP  _	== RELOP "_"	= True
-	MULOP  _	== MULOP "_"	= True
-	ADDOP  _	== ADDOP "_"	= True
-	ADDOP "+"	== SIGN		= True
-	ADDOP "-"	== SIGN		= True
-	ID  _		== ID "_"	= True
-	REF _		== ID "_"	= True
-	BIGREAL _	== NUM		= True
-	REAL _		== NUM		= True
-	INT _		== NUM		= True
-	BIGREAL _	== BIGREAL "_"	= True
-	REAL _		== REAL "_"	= True
-	INT _		== INT "_"	= True
+	RELOP  _		== RELOP "_"	= True
+	MULOP  _		== MULOP "_"	= True
+	ADDOP  _		== ADDOP "_"	= True
+	ADDOP "+"		== SIGN		= True
+	ADDOP "-"		== SIGN		= True
+	ID  _			== ID "_"	= True
+	REF _			== ID "_"	= True
+	LEXERR LONGID _		== ID "_"	= True
+	BIGREAL _		== NUM		= True
+	REAL _			== NUM		= True
+	INT _			== NUM		= True
+	LEXERR LONGINT _	== NUM		= True
+	LEXERR LONGWHOLE _	== NUM		= True
+	LEXERR LONGFRAC _	== NUM		= True
+	LEXERR LONGEXP _	== NUM		= True
+	BIGREAL _		== BIGREAL "_"	= True
+	REAL _			== REAL "_"	= True
+	INT _			== INT "_"	= True
 	{- And reverse it... This may not be necessary,
 	   but completeness compells me-}
 	RELOP "_"	== RELOP  _	= True
@@ -156,3 +169,7 @@ instance Show LexErrType where
 	show LONGFRAC	= "Extra Long Fractional Part"
 	show LONGEXP	= "Extra Long Exponent"
 	show LONGID	= "Extra Long Identifier"
+
+isID :: Symbol -> Bool
+isID (ID _)	= True
+isID _		= False

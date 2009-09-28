@@ -122,13 +122,13 @@ wrapWord word	| word `elem` addopWords = ADDOP word
 
 -- Match numbers
 matchInt t@(Tape _ h _) | isDigit h = matchInt (mover t)
-			| h == '.'  = matchFrac (mover t)
-			| h == 'e' || h == 'E' = matchExp (mover t)
-			| otherwise = INT (left' t) : continue t
+matchInt t@(Tape _ h (r:_)) | h == '.' && isDigit r  = matchFrac (mover t)
+matchInt t@(Tape _ h (r:r':_)) | h `elem` "eE" && (isDigit r || (r `elem` "+-" && isDigit r')) = matchExp (mover t)
+matchInt t@(Tape _ h _) | otherwise = INT (left' t) : continue t
 
 matchFrac t@(Tape _ h _) | isDigit h = matchFrac (mover t)
-			 | h == 'e' || h == 'E' = matchExp (mover t)
-			 | otherwise = REAL (left' t) : continue t
+matchFrac t@(Tape _ h (r:r':_)) | h `elem` "eE" && (isDigit r || (r `elem` "+-" && isDigit r')) = matchExp (mover t)
+matchFrac t@(Tape _ h _) | otherwise = REAL (left' t) : continue t
 
 matchExp t@(Tape _ h _)	| h `elem` "+-" = matchExp' (mover t)
 			| otherwise	= matchExp' t
