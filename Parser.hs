@@ -16,6 +16,11 @@ type LexOut = ([Symbol],[Token])
 
 end = Token NoLine EOF
 
+main = do
+	input <- getContents
+	results <- return . parse . lines $ input
+	mapM (putStrLn) (report results)
+
 parse input = let (tab,toks) = scan input in
 	program (State (tapify' end toks) tab)
 
@@ -25,8 +30,13 @@ report st = (detape . tape $ st) >>= report' (table st)
 report' :: [Symbol] -> Token -> [String]
 report' table t = case t of
 			SYNTAXERR _ _		-> handleSynErr table t
-			Token _ (LEXERR _ _)	-> [show . sym $ t]
+			Token _ (LEXERR _ _)	-> handleLexErr t
 			_			-> []
+
+handleLexErr :: Token -> [String]
+handleLexErr (Token (Line n _) (LEXERR t s)) = ["Lexical Error: Received Line "
+						++ show n ++ ": " ++ s ++ " ("
+						++ show t ++ ")"]
 
 handleSynErr :: [Symbol] -> Token -> [String]
 handleSynErr table (SYNTAXERR v (c:cs)) = ("Syntax Error: Received " ++ show c

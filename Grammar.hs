@@ -40,7 +40,6 @@ program e	=  e
 		$> match (DELIM ")")
 		$> matchSynch (DELIM ";")
 		$> program'
-		$> resolveErr follow
 	where
 		first = [RES "program"]
 		follow = [EOF]
@@ -205,7 +204,9 @@ subprogram_declarations' :: State -> State
 subprogram_declarations' e | extract e == RES "function"	=  e
 								$> subprogram_declarations
 			   | extract e == RES "begin"		=  e
-			   | otherwise				=  syntaxErr valid e
+			   | otherwise				=  e
+								$> syntaxErr valid
+								$> resolveErr follow
 	where
 		first = [RES "function"]
 		follow = [RES "begin"]
@@ -446,7 +447,8 @@ variable' e | extract e == DELIM "["	=  e { tape = mover (tape e) }
 	    | extract e `elem` follow	=  e
 	    | otherwise			=  e
 					$> syntaxErr valid
-					$> resolveErr follow
+-- ASSIGNOP is a pretty silly thing to synch to
+--					$> resolveErr follow
 	where
 		first = [DELIM "["]
 		follow = [ASSIGNOP]
@@ -518,7 +520,9 @@ simple_expression e | extract e == SIGN		=  e { tape = mover (tape e) }
 		    | extract e `elem` first	=  e
 						$> term
 						$> simple_expression'
-		    | otherwise			=  syntaxErr first e
+		    | otherwise			=  e
+						$> syntaxErr first
+						$> resolveErr follow
 	where
 		first = [ID "_", DELIM "(", RES "not", NUM, SIGN]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
