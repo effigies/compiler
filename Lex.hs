@@ -3,8 +3,6 @@
  -
  -}
 
-module Lex (symbolTable, insert) where
-
 import IO
 import Monad
 import Defs
@@ -12,70 +10,56 @@ import PreProcess
 import Token
 import Tape
 
-process :: Int -> [String] -> [Symbol] -> Handle -> Handle -> IO ( )
-process n rs table list tok = let next = (\t -> process (n + 1) rs t list tok)
-		in do
-			line			<- getLine
-			tape			<- return (tapify' '\0' line)
-			tokens  		<- return (tokenize tape) 
-			tokens'			<- return (preprocess rs tokens)
-			(tokens'', table')	<- return (symbolTable table tokens')
-			hPutStrLn list ((shows n . ('\t':)) line)
-			when (length line > 72) $ hPutStrLn list "Line too long"
-			writeList list tokens'' table'
-			writeTokens tok n tokens'' table'
---			hPutStrLn tok (show tokens'')
---			putStrLn (show table')
-			catch (next table') (\_ -> (writeTokens tok (n+1) [EOF] []))
-			return ( )
-
-writeList :: Handle -> [Symbol] -> [Symbol] -> IO ( )
-writeList file [] table = return ()
-writeList file (t:ts) table = do
-	case t of
-		LEXERR _ _ -> hPutStrLn file (show t)
-		_	   -> return ()
-	writeList file ts table
-
-writeTokens :: Handle -> Int -> [Symbol] -> [Symbol] -> IO ( )
-writeTokens file n [] table = return ()
-writeTokens file n (t:ts) table = do
-	hPutStrLn file ((shows n . ('\t':)) (show t))
-	writeTokens file n ts table
-
-insert :: Int -> Symbol -> [Symbol] -> (Symbol,[Symbol])
-insert n id []		= (REF n, [id])
-insert n id (e:es)	| id == e	= (REF n, e:es)
-			| otherwise	= let (ref,es') = insert (n + 1) id es
-					in (ref, e:es')
-
--- Takes a symbol table and a sequence of symbols, and returns (a,b) where
---    a is the sequence of symbols, with identifiers replaced with table refs
---    b is the updated symbol table
-symbolTable :: [Symbol] -> [Symbol] -> ([Symbol],[Symbol])
-symbolTable table []	 = ([],table)
-symbolTable table (t:ts) = let (ref, table') = if t == ID "_" then insert 1 t table
-							 else (t,table)
-			       (refs, table'') = symbolTable table' ts
-				  in (ref:refs,table'')
-
-main :: IO ( )
+main :: IO ()
 main = do
-	-- Read in reserved words (per project parameters)
-	reservedFile	<- openFile "reserved" ReadMode
-	r		<- hGetContents reservedFile
-	reserved	<- return (lines r)
-
-	-- Listing file - track lexical errors
+	input <- getContents
+	(table, tokens) <- return . scan . lines $ input
 	listingFile	<- openFile "listing" WriteMode
-
-	-- Token file - complete listing of tokens and errors, with reference
-	-- to the symbol table where appropriate
 	tokenFile	<- openFile "tokens"  WriteMode
-
-	process 1 reserved [] listingFile tokenFile
-
-	-- Clean up
+	writeList listingFile NoLine tokens
+	mapM (hPutStrLn tokenFile . show) tokens
 	hClose listingFile
 	hClose tokenFile
-	hClose reservedFile
+
+writeList :: Handle -> Line -> [Token] -> IO ()
+writeList _ _ [] = return ()
+writeList file l (Token l'@(Line n text) s:ts) = do
+	when (l /= l') $ hPutStrLn file (show n ++ ":\t" ++ text)
+	when (isLexErr s) $ hPutStrLn file (show s)
+	writeList file l' ts
+
+scan :: [String] -> ([Symbol],[Token])
+scan input = tabulate (zipWith Line [1..] input >>= scan' >>= fixup)
+
+scan' :: Line -> [Token]
+scan' l@(Line _ text) = map (Token l) (tokenize (tapify' '\0' text))
+
+-- tabulate - construct symbol table, and replace IDs with REFs
+tabulate :: [Token] -> ([Symbol],[Token])
+tabulate = tabulate' []
+
+-- tabulate' - do the real work of tabulate
+-- 
+-- The first line gets us the "current" symbol table, and token
+-- If the token is an ID, it updates the table, and gives us a REF
+-- Otherwise, the table and token remain unchanged
+-- The second line recursively tabulates
+-- The final line prepends our token, and passes the final symbol table up
+tabulate' :: [Symbol] -> [Token] -> ([Symbol],[Token])
+tabulate' tab []     = (tab,[])
+tabulate' tab (t:ts) = let (tab',r) = if isID . sym $ t then insert tab t
+						else (tab,t)
+			   (tab'',rs) = tabulate' tab' ts
+			in (tab'',r:rs)
+
+-- insert - Given a symbol table and a token,
+--          insert the token into the symbol table
+insert :: [Symbol] -> Token -> ([Symbol],Token)
+insert = insert' 1
+
+-- insert' - Insert a token into a symbol table, with base index n
+insert' :: Int -> [Symbol] -> Token -> ([Symbol], Token)
+insert' n [] tok	= ([sym tok], tok {sym = REF n})
+insert' n (t:tab) tok	| t == sym tok	= (t:tab, tok {sym = REF n})
+			| otherwise	= let (tab', r) = insert' (n+1) tab tok
+					in (t:tab', r)

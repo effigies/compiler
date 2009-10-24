@@ -9,7 +9,7 @@ module Defs ( Line( Line, NoLine ),
 		ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN),
 	      LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
 		LONGID),
-	      isID)
+	      isID, isLexErr)
 	where
 
 import Tape
@@ -173,3 +173,7 @@ instance Show LexErrType where
 isID :: Symbol -> Bool
 isID (ID _)	= True
 isID _		= False
+
+isLexErr :: Symbol -> Bool
+isLexErr (LEXERR _ _)	= True
+isLexErr _		= False

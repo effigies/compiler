@@ -5,12 +5,13 @@
  - along with other preprocessing functions.
  -}
 
-module PreProcess (preprocess) where
+module PreProcess (fixup) where
 
 import Defs
 
 import Token
 import Tape
+
 
 -- Constraints
 maxIDLen, maxIntLen, maxWholeLen, maxFracLen, maxExpLen	:: Int
@@ -20,34 +21,25 @@ maxWholeLen	= 5
 maxFracLen	= 5
 maxExpLen	= 2
 
-{- preprocess
- -
- - Given a string of tokens, perform the following actions
- -
- - 1) Ignore whitespace; whitespace is never an error in Pascal
- - 2) Distinguish reserved words and identifiers
- - 3) Validate numerical constants
- -}
-preprocess :: [String] -> [Symbol] -> [Symbol]
-preprocess _ [] = []
-preprocess rs (s:ss) = let next = preprocess rs ss in
-			case s of
-				WHITESPACE	-> 		    next
-				NAME	n	-> nameCheck rs n : next
-				INT	i	-> intCheck	i : next
-				REAL	r	-> realCheck	r : next
-				BIGREAL	b	-> bigRealCheck	b : next
-				_		->		s : next
+fixup :: Token -> [Token]
+fixup t = case (sym t) of
+	WHITESPACE	-> []
+	NAME n		-> [t { sym = nameCheck	n }]
+	INT i		-> [t { sym = intCheck	i }]
+	REAL r		-> [t { sym = realCheck	r }]
+	BIGREAL b	-> [t { sym = bigRealCheck	b }]
+	_		-> [t]
 
-nameCheck :: [String] -> String -> Symbol
-nameCheck rs name | length name > maxIDLen	= LEXERR LONGID name
-		  | name `elem` rs		= RES name
-		  | otherwise			= ID name
+nameCheck :: String -> Symbol
+nameCheck name	| length name > maxIDLen	= LEXERR LONGID name
+		| isReserved name		= RES name
+		| otherwise			= ID name
 
-
+intCheck :: String -> Symbol
 intCheck int   | length int <= maxIntLen	= INT int
 	       | otherwise			= LEXERR LONGINT int
 
+realCheck :: String -> Symbol
 realCheck real = let (whole, dot:frac) = span (/= '.') real in
 		if length whole > maxWholeLen then
 			LEXERR LONGWHOLE real

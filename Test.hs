@@ -1,9 +1,8 @@
-module Test (samplel,out, errl) where
+module Test (samplel, errl) where
 
 import Tape
 import Token
 import Defs
-import PreProcess
 
 samplel :: [String]
 samplel = [	"program example(input, output);",
@@ -40,5 +39,3 @@ sample = unlines samplel
 samplet = tapify sample
 
 samplets = map (tapify' '\0') samplel
-
-out = preprocess reserved (tokenize samplet)
