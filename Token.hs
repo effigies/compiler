@@ -48,7 +48,7 @@ reserved = [	"program", "var", "array", "of", "integer", "real", "function",
 		"do", "not" ]
 
 -- Ambiguous characters
-ambiguous = ":."
+ambiguous = ":.-"
 
 -- Useful predicates (We've already imported some from Char)
 isAddOp		= contains addops
@@ -87,9 +87,9 @@ continuer = continue . mover
 -- Ambiguous initial characters
 
 -- Minus can either be an operator or modify a numeric literal
---handleAmbiguous t@(Tape "-" h _) | isDigit h = matchInt (mover t)
---				 | h == '.'  = matchFrac (mover t)
---				 | otherwise = ADDOP "-" : continue t
+handleAmbiguous t@(Tape "-" h _) | isDigit h = matchInt (mover t)
+				 | h == '.'  = matchFrac (mover t)
+				 | otherwise = ADDOP "-" : continue t
 
 -- Colon may be a lexeme in itself, or the first part of the assignment op
 handleAmbiguous t@(Tape ":" h _) | h == '='  = ASSIGNOP  : continuer t

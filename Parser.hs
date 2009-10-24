@@ -31,7 +31,12 @@ report' :: [Symbol] -> Token -> [String]
 report' table t = case t of
 			SYNTAXERR _ _		-> handleSynErr table t
 			Token _ (LEXERR _ _)	-> handleLexErr t
+			Token _ (REF n)		-> checkRef t { sym = table !! (n - 1) }
 			_			-> []
+
+checkRef :: Token -> [String]
+checkRef t@(Token _ (LEXERR _ _)) = handleLexErr t
+checkRef _ = []
 
 handleLexErr :: Token -> [String]
 handleLexErr (Token (Line n _) (LEXERR t s)) = ["Lexical Error: Received Line "
@@ -39,9 +44,12 @@ handleLexErr (Token (Line n _) (LEXERR t s)) = ["Lexical Error: Received Line "
 						++ show t ++ ")"]
 
 handleSynErr :: [Symbol] -> Token -> [String]
-handleSynErr table (SYNTAXERR v (c:cs)) = ("Syntax Error: Received " ++ show c
-						++ "; Expected " ++ showValid v)
-					: (cs >>= report' table) -- Catch any LEXERRs
+handleSynErr table (SYNTAXERR v cs@(Token (Line n _) (LEXERR _ c):_)) =
+	("Syntax Error:  Received Line " ++ show n ++ ": " ++ show c ++ "; Expected " ++ showValid v)
+	: (cs >>= report' table)
+handleSynErr table (SYNTAXERR v (c:cs)) =
+	("Syntax Error:  Received " ++ show c ++ "; Expected " ++ showValid v)
+	: (cs >>= report' table) -- Catch any LEXERRs
 
 showValid :: [Symbol] -> String
 showValid [t] = show t

@@ -27,19 +27,22 @@ syntaxErr _ st | onErr st = st
 syntaxErr val (State (Tape l f r) s) = State (Tape l (SYNTAXERR val [f]) r) s
 
 -- resolveErr
--- Discover and resolve syntax errors, panicking until we find a synchronizing token
+-- Discover and resolve syntax errors, panicking until we find a synchronizing
+-- token
 resolveErr :: [Symbol] -> State -> State
 resolveErr f st = st { tape = resolveErr' f (tape st) }
 
 -- resolveErr'
--- This is where we actually do those things I just said. I'll explain each line.
+-- This is where we actually do those things I just said. I'll explain each
+-- line.
 resolveErr' :: [Symbol] ->  Tape Token -> Tape Token
--- If we've reached an early EOF, there's not much we can do except keep moving.
+-- If we've reached an early EOF, there's not much we can do except keep
+-- moving.
 resolveErr' f t@(Tape _ (SYNTAXERR _ _) []) = t
 -- If we've found something in the synch set, we can move on.
 resolveErr' f t@(Tape _ (SYNTAXERR _ _) (r:_)) | inSynch (sym r) f = mover t
 -- If not, let's put that token in our syntax error, so we can report it later
-					       | otherwise	   = resolveErr' f (panic t)
+					| otherwise = resolveErr' f (panic t)
 -- There's no syntax error. Moving right along.
 resolveErr' _ t = t
 
