@@ -20,7 +20,7 @@
 
 module Token ( tokenize, reserved, isReserved ) where
 
-import Defs ( Symbol (..), LexErrType (UNREC) )
+import Defs ( Symbol (..), LexErrType (UNREC), Type (NULL_t), NameSpace (GLOBAL) )
 
 import Data.List ( nub )
 import Tape      ( Tape(Tape), mover, cutl, left' )
@@ -77,7 +77,7 @@ tokenize' t@(Tape "" h _) | isSpace h	= matchWS (mover t)
 			  | isDigit h	= matchInt (mover t)
 			  | isDelim h	= DELIM [h] : continuer t
 			  | h == '\0'	= []
-			  | otherwise	= LEXERR UNREC [h] : continuer t
+			  | otherwise	= LEXERR UNREC (NONSENSE [h]) : continuer t
 
 -- These patterns appear frequently
 continue = tokenize . cutl
@@ -114,11 +114,10 @@ matchWord t@(Tape _ h _) | isAlphaNum h = matchWord (mover t)
 			 | otherwise	= wrapWord (left' t) : continue t
 
 wrapWord :: String -> Symbol
-wrapWord word	| word `elem` addopWords = ADDOP word
-		| word `elem` mulopWords = MULOP word
-		| otherwise		 = NAME    word
---		| word `elem` reserved   = RES   word
---		| otherwise		 = ID    word
+wrapWord word	| word `elem` addopWords	= ADDOP	word
+				| word `elem` mulopWords	= MULOP	word
+				| word `elem` reserved		= RES	word
+				| otherwise		 			= ID	word	GLOBAL	NULL_t
 
 -- Match numbers
 matchInt t@(Tape _ h _) | isDigit h = matchInt (mover t)
@@ -143,4 +142,4 @@ matchRelOp t@(Tape _ h _) | isRelOp h		= matchRelOp' (mover t)
 matchRelOp' t = let tok = left' t in
 		if tok `elem` relops
 		then RELOP tok : continue t
-		else LEXERR UNREC tok : continue t
+		else LEXERR UNREC (NONSENSE tok) : continue t
