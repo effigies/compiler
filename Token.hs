@@ -115,9 +115,9 @@ matchWord t@(Tape _ h _) | isAlphaNum h = matchWord (mover t)
 
 wrapWord :: String -> Symbol
 wrapWord word	| word `elem` addopWords	= ADDOP	word
-				| word `elem` mulopWords	= MULOP	word
-				| word `elem` reserved		= RES	word
-				| otherwise		 			= ID	word	GLOBAL	NULL_t
+		| word `elem` mulopWords	= MULOP	word
+		| word `elem` reserved		= RES	word
+		| otherwise		 	= ID	word	GLOBAL	NULL_t
 
 -- Match numbers
 matchInt t@(Tape _ h _) | isDigit h = matchInt (mover t)
@@ -136,8 +136,8 @@ matchExp' t@(Tape _ h _) | isDigit h = matchExp' (mover t)
 			 | otherwise = BIGREAL (left' t) : continue t
 
 -- Match relational operators
-matchRelOp t@(Tape _ h _) | isRelOp h		= matchRelOp' (mover t)
-			  | otherwise		= RELOP (left' t) : continue t
+matchRelOp t@(Tape _ h _) | isRelOp h	= matchRelOp' (mover t)
+			  | otherwise	= RELOP (left' t) : continue t
 
 matchRelOp' t = let tok = left' t in
 		if tok `elem` relops

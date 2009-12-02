@@ -30,7 +30,7 @@ fixup t = case (sym t) of
 
 intCheck :: String -> Symbol
 intCheck int	| length int <= maxIntLen	= INT int
-				| otherwise					= LEXERR LONGINT (INT int)
+		| otherwise			= LEXERR LONGINT (INT int)
 
 realCheck :: String -> Symbol
 realCheck real = let (whole, dot:frac) = span (/= '.') real in
