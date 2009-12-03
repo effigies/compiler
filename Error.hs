@@ -17,7 +17,7 @@ import Production ( Production )
 -- point, at which time we will calmly panic.
 syntaxErr :: [Symbol] -> Production
 syntaxErr _ ts@(Token _ (SYNTAXERR _ _):_) = return ts
-syntaxErr val (Token l s : ts) = return $ Token l (SYNTAXERR val s) : ts
+syntaxErr val (Token l s : ts) = return $ ((Token l (SYNTAXERR val s)) : ts)
 
 -- resolveErr
 -- Discover and resolve syntax errors, panicking until we find a synchronizing

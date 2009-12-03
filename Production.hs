@@ -2,7 +2,7 @@
  - Define the mode of computation for our grammar productions
  -}
 
-module Production ( Production,
+module Production ( Production, epsilon,
 		getTable, getType, getScope, putTable, putType, putScope,
 		pushScope, popScope, setType,
 		typeof
@@ -42,6 +42,9 @@ type Compute = StateT Context (Writer [String])
 --runComputation = runWriter
 
 type Production = [Token] -> Compute [Token]
+
+epsilon :: Production
+epsilon = return
 
 {- Get and put methods for each field in the State -}
 getTable :: Compute [Symbol]

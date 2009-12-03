@@ -5,21 +5,12 @@
 
 module Grammar ( program ) where
 
-{- We need to know what about Symbols -}
-import Defs
-import Match
+import Symbol ( Symbol (..) )
+import Defs ( sym )
+import Production ( Production, epsilon, getTable, pushScope, popScope )
+import Match ( match, matchSynch )
+import Error ( syntaxErr, resolveErr )
 import Test
-import Tape
-import Error
-
-{- Here is our special-made sequencer, which allows us to write our productions
- - naturally (first -> last) and with far fewer parentheses than normal
- - function application would require. Compare the following:
- -
- - production e = e $> prod1 $> prod2 $> prod3
- - production e = prod3 (prod2 (prod1 e))
- -}
-($>) = flip ($)
 
 {- I feel the e convention for the list of tokens may be a bit unintuitive, so
  - I'll explain. I use this because the full list of tokens is identical to the
@@ -31,15 +22,14 @@ import Error
  - 1.1.1.1.1.1	program → program id ( identifier_list ) ; program'
  -}
 
-program :: State -> State
-program e	=  e
-		$> match (RES "program")
-		$> match (ID "_")
-		$> match (DELIM "(")
-		$> identifier_list
-		$> match (DELIM ")")
-		$> matchSynch (DELIM ";")
-		$> program'
+program :: Production
+program ts	=   match (RES "program") ts
+		>>= match VAR
+		>>= match (DELIM "(")
+		>>= identifier_list
+		>>= match (DELIM ")")
+		>>= matchSynch (DELIM ";")
+		>>= program'
 	where
 		first = [RES "program"]
 		follow = [EOF]
@@ -48,15 +38,12 @@ program e	=  e
  - 1.1.1.1.2.1	program' → declarations program''
  - 1.1.1.1.2.2	program' → program''
  -}
-program' :: State -> State
-program' e | extract e == RES "var"	=  e
-					$> declarations
-					$> program''
-	   | extract e `elem` first	=  e
-					$> program''
-	   | otherwise			=  e
-					$> syntaxErr first
-					$> resolveErr follow
+program' :: Production
+program' (t:ts) | sym t == RES "var"	=   declarations (t:ts)
+					>>= program''
+	   	| sym t `elem` first	=   program'' (t:ts)
+		| otherwise		=   syntaxErr first (t:ts)
+					>>= resolveErr follow
 	where
 		first = [RES "function", RES "begin", RES "var"]
 		follow = [EOF]
@@ -65,15 +52,12 @@ program' e | extract e == RES "var"	=  e
  - 1.1.1.1.3.1	program'' → subprogram_declarations program'''
  - 1.1.1.1.3.2	program'' → program'''
  -}
-program'' :: State -> State
-program'' e | extract e == RES "function"	=  e
-						$> subprogram_declarations
-						$> program'''
-	    | extract e == RES "begin"		=  e
-						$> program'''
-	    | otherwise				=  e
-						$> syntaxErr first
-						$> resolveErr follow
+program'' :: Production
+program'' (t:ts) | sym t == RES "function"	=   subprogram_declarations (t:ts)
+						>>= program'''
+		 | sym t == RES "begin"		=   program''' (t:ts)
+		 | otherwise			=   syntaxErr first (t:ts)
+						>>= resolveErr follow
 	where
 		first = [RES "function", RES "begin"]
 		follow = [EOF]
@@ -81,12 +65,11 @@ program'' e | extract e == RES "function"	=  e
 {-
  - 1.1.1.1.4.1	program''' → compound_statement .
  -}
-program''' :: State -> State
-program''' e	=  e
-		$> compound_statement
-		$> match DOT
-		$> matchEOF
-		$> resolveErr follow
+program''' :: Production
+program''' ts	=   compound_statement ts
+		>>= match DOT
+		>>= match EOF
+		>>= resolveErr follow
 	where
 		first = [RES "begin"]
 		follow = [EOF]
@@ -94,25 +77,22 @@ program''' e	=  e
 {-
  - 2.1.1.1.1.1	identifier_list → id identifier_list'
  -}
-identifier_list :: State -> State
-identifier_list e	=  e
-			$> match (ID "_")
-			$> identifier_list'
+identifier_list :: Production
+identifier_list ts	=   match VAR ts
+			>>= identifier_list'
 	where
-		first = [ID "_"]
+		first = [VAR]
 		follow = [DELIM ")"]
 
 {-
  - 2.1.2.1.1.1	identifier_list' → , identifier_list
  - 2.1.2.2.1.1	identifier_list' → ε
  -}
-identifier_list' :: State -> State
-identifier_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
-						$> identifier_list
-		   | extract e == DELIM ")"	=  e
-		   | otherwise			=  e
-						$> syntaxErr valid
-						$> resolveErr follow
+identifier_list' :: Production
+identifier_list' (t:ts) | sym t == DELIM ","	=   identifier_list ts
+			| sym t == DELIM ")"	=   epsilon (t:ts)
+			| otherwise		=   syntaxErr valid (t:ts)
+						>>= resolveErr follow
 	where
 		first = [DELIM ","]
 		follow = [DELIM ")"]
@@ -121,14 +101,13 @@ identifier_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
 {-
  - 3.1.1.1.1.1	declarations → var id : type ; declarations'
  -}
-declarations :: State -> State
-declarations e	=  e
-		$> match (RES "var")
-		$> match (ID "_")
-		$> match (DELIM ":")
-		$> type_		-- Since type is a Haskell keyword
-		$> matchSynch (DELIM ";")
-		$> declarations'
+declarations :: Production
+declarations ts	=   match (RES "var") ts
+		>>= match VAR
+		>>= match (DELIM ":")
+		>>= type_		-- Since type is a Haskell keyword
+		>>= matchSynch (DELIM ";")
+		>>= declarations'
 	where
 		first = [RES "var"]
 		follow = [RES "function", RES "begin"]
@@ -137,13 +116,11 @@ declarations e	=  e
  - 3.1.2.1.1.1	declarations' → declarations
  - 3.1.2.2.1.1	declarations' → ε
  -}
-declarations' :: State -> State
-declarations' e | extract e == RES "var"	=  e
-						$> declarations
-		| extract e `elem` follow	=  e
-		| otherwise			=  e
-						$> syntaxErr valid
-						$> resolveErr follow
+declarations' :: Production
+declarations' (t:ts)	| sym t == RES "var"	=   declarations (t:ts)
+			| sym t `elem` follow	=   epsilon (t:ts)
+			| otherwise		=   syntaxErr valid (t:ts)
+						>>= resolveErr follow
 	where
 		first = [RES "var"]
 		follow = [RES "function", RES "begin"]
@@ -153,20 +130,17 @@ declarations' e | extract e == RES "var"	=  e
  - 4.2.1.1.1.1	type → array [ num .. num ] of standard_type
  - 4.1.1.1.1.1	type → standard_type
  -}
-type_ :: State -> State
-type_ e | extract e == RES "array"	=  e { tape = mover (tape e) }
-					$> match (DELIM "[")
-					$> match (INT "_")
-					$> match (DELIM "..")
-					$> match (INT "_")
-					$> match (DELIM "]")
-					$> match (RES "of")
-					$> standard_type
-	| extract e `elem` first	=  e
-					$> standard_type
-	| otherwise			=  e
-					$> syntaxErr first
-					$> resolveErr follow
+type_ :: Production
+type_ (t:ts) | sym t == RES "array"	=   match (DELIM "[") ts
+					>>= match (INT "_")
+					>>= match (DELIM "..")
+					>>= match (INT "_")
+					>>= match (DELIM "]")
+					>>= match (RES "of")
+					>>= standard_type
+	     | sym t `elem` first	=   standard_type (t:ts)
+	     | otherwise		=   syntaxErr first (t:ts)
+					>>= resolveErr follow
 	where
 		first = [RES "integer", RES "real", RES "array"]
 		follow = [DELIM ";", DELIM ")"]
@@ -175,11 +149,10 @@ type_ e | extract e == RES "array"	=  e { tape = mover (tape e) }
  - 5.1.1.1.1.1	standard_type → integer
  - 5.2.1.1.1.1	standard_type → real
  -}
-standard_type :: State -> State
-standard_type e | extract e `elem` first	=  e { tape = mover (tape e) }
-		| otherwise			=  e
-						$> syntaxErr first
-						$> resolveErr follow
+standard_type :: Production
+standard_type (t:ts) | sym t `elem` first	=   epsilon ts
+		     | otherwise		=   syntaxErr first (t:ts)
+						>>= resolveErr follow
 	where
 		first = [RES "integer", RES "real"]
 		follow = [DELIM ";", DELIM ")"]
@@ -187,11 +160,10 @@ standard_type e | extract e `elem` first	=  e { tape = mover (tape e) }
 {-
  - 6.1.1.1.1.1	subprogram_declarations → subprogram_declaration ; subprogram_declarations'
  -}
-subprogram_declarations :: State -> State
-subprogram_declarations e	=  e
-				$> subprogram_declaration
-				$> matchSynch (DELIM ";")
-				$> subprogram_declarations'
+subprogram_declarations :: Production
+subprogram_declarations ts	=   subprogram_declaration ts
+				>>= matchSynch (DELIM ";")
+				>>= subprogram_declarations'
 	where
 		first = [RES "function"]
 		follow = [RES "begin"]
@@ -200,13 +172,11 @@ subprogram_declarations e	=  e
  - 6.1.2.1.1.1	subprogram_declarations' → subprogram_declarations
  - 6.1.2.2.1.1	subprogram_declarations' → ε
  -}
-subprogram_declarations' :: State -> State
-subprogram_declarations' e | extract e == RES "function"	=  e
-								$> subprogram_declarations
-			   | extract e == RES "begin"		=  e
-			   | otherwise				=  e
-								$> syntaxErr valid
-								$> resolveErr follow
+subprogram_declarations' :: Production
+subprogram_declarations' (t:ts) | sym t == RES "function"	=   subprogram_declarations (t:ts)
+				| sym t == RES "begin"		=   epsilon (t:ts)
+				| otherwise			=   syntaxErr valid (t:ts)
+								>>= resolveErr follow
 	where
 		first = [RES "function"]
 		follow = [RES "begin"]
@@ -215,10 +185,9 @@ subprogram_declarations' e | extract e == RES "function"	=  e
 {-
  - 7.1.1.1.1.1	subprogram_declaration → subprogram_head subprogram_declaration'
  -}
-subprogram_declaration :: State -> State
-subprogram_declaration e	=  e
-				$> subprogram_head
-				$> subprogram_declaration'
+subprogram_declaration :: Production
+subprogram_declaration ts	=   subprogram_head ts
+				>>= subprogram_declaration'
 	where
 		first = [RES "function"]
 		follow = [DELIM ";"]
@@ -227,15 +196,12 @@ subprogram_declaration e	=  e
  - 7.1.1.1.2.1	subprogram_declaration' → declarations subprogram_declaration''
  - 7.1.1.1.2.2	subprogram_declaration' → subprogram_declaration''
  -}
-subprogram_declaration' :: State -> State
-subprogram_declaration' e | extract e == RES "var"	=  e
-							$> declarations
-							$> subprogram_declaration''
-			  | extract e `elem` first	=  e
-							$> subprogram_declaration''
-			  | otherwise			=  e
-							$> syntaxErr first
-							$> resolveErr follow
+subprogram_declaration' :: Production
+subprogram_declaration' (t:ts)	| sym t == RES "var"	=   declarations (t:ts)
+							>>= subprogram_declaration''
+				| sym t `elem` first	=   subprogram_declaration'' (t:ts)
+				| otherwise		=   syntaxErr first (t:ts)
+							>>= resolveErr follow
 	where
 		first = [RES "function", RES "begin", RES "var"]
 		follow = [DELIM ";"]
@@ -244,15 +210,14 @@ subprogram_declaration' e | extract e == RES "var"	=  e
  - 7.1.1.1.3.1	subprogram_declaration'' → subprogram_declarations compound_statement
  - 7.1.1.1.1.2	subprogram_declaration'' → compound_statement
  -}
-subprogram_declaration'' :: State -> State
-subprogram_declaration'' e | extract e == RES "function"	=  e
-								$> subprogram_declarations
-								$> compound_statement
-			   | extract e == RES "begin"		=  e
-								$> compound_statement
-			   | otherwise				=  e
-								$> syntaxErr first
-								$> resolveErr follow
+subprogram_declaration'' :: Production
+subprogram_declaration'' (t:ts) | sym t == RES "function"	=   subprogram_declarations (t:ts)
+								>>= compound_statement
+								>>= \n -> popScope >> return n
+				| sym t == RES "begin"		=   compound_statement (t:ts)
+								>>= \n -> popScope >> return n
+				| otherwise			=   syntaxErr first (t:ts)
+								>>= resolveErr follow
 	where
 		first = [RES "function", RES "begin"]
 		follow = [DELIM ";"]
@@ -260,11 +225,17 @@ subprogram_declaration'' e | extract e == RES "function"	=  e
 {-
  - 8.1.1.1.1.1	subprogram_head → function id subprogram_head'
  -}
-subprogram_head :: State -> State
-subprogram_head e	=  e
-			$> match (RES "function")
-			$> match (ID "_")
-			$> subprogram_head'
+subprogram_head :: Production
+subprogram_head ts	=   do
+				(t:ts') <- match (RES "function") ts
+				ts'' <- match VAR (t:ts')
+
+				REF n <- return $ sym t
+				tab <- getTable
+				ID fun tp scope <- return $ tab !! n
+				pushScope fun
+
+				subprogram_head' ts''
 	where
 		first = [RES "function"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -273,16 +244,13 @@ subprogram_head e	=  e
  - 8.1.1.1.2.1	subprogram_head' → ( parameter_list ) subprogram_head'''
  - 8.1.1.1.2.2	subprogram_head' → subprogram_head'''
  -}
-subprogram_head' :: State -> State
-subprogram_head' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
-						$> parameter_list
-						$> match (DELIM ")")
-						$> subprogram_head''
-		   | extract e == DELIM ":"	=  e
-						$> subprogram_head''
-		   | otherwise			=  e
-						$> syntaxErr first
-						$> resolveErr follow
+subprogram_head' :: Production
+subprogram_head' (t:ts) | sym t == DELIM "("	=   parameter_list (t:ts)
+						>>= match (DELIM ")")
+						>>= subprogram_head''
+			| sym t == DELIM ":"	=   subprogram_head'' (t:ts)
+			| otherwise		=   syntaxErr first (t:ts)
+						>>= resolveErr follow
 	where
 		first = [DELIM "(", DELIM ":"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -290,11 +258,10 @@ subprogram_head' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
 {-
  - 8.1.1.1.3.1	subprogram_head'' → : standard_type ;
  -}
-subprogram_head'' :: State -> State
-subprogram_head'' e	=  e
-			$> match (DELIM ":")
-			$> standard_type
-			$> matchSynch (DELIM ";")
+subprogram_head'' :: Production
+subprogram_head'' ts	=   match (DELIM ":") ts
+			>>= standard_type
+			>>= matchSynch (DELIM ";")
 	where
 		first = [DELIM ":"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -302,27 +269,24 @@ subprogram_head'' e	=  e
 {-
  - 10.1.1.1.1.1	parameter_list → id : type parameter_list'
  -}
-parameter_list :: State -> State
-parameter_list e	=  e
-			$> match (ID "_")
-			$> match (DELIM ":")
-			$> type_
-			$> parameter_list'
+parameter_list :: Production
+parameter_list ts	=   match VAR ts
+			>>= match (DELIM ":")
+			>>= type_
+			>>= parameter_list'
 	where
-		first = [ID "_"]
+		first = [VAR]
 		follow = [DELIM ")"]
 
 {-
  - 10.1.2.1.1.1	parameter_list' → ; parameter_list
  - 10.1.2.2.1.1	parameter_list' → ε
  -}
-parameter_list' :: State -> State
-parameter_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
-						$> parameter_list
-		  | extract e == DELIM ")"	=  e
-		  | otherwise			=  e
-						$> syntaxErr valid
-						$> resolveErr follow
+parameter_list' :: Production
+parameter_list' (t:ts) | sym t == DELIM ";"	=   parameter_list ts
+		       | sym t == DELIM ")"	=   epsilon (t:ts)
+		       | otherwise		=   syntaxErr valid (t:ts)
+						>>= resolveErr follow
 	where
 		first = [DELIM ";"]
 		follow = [DELIM ")"]
@@ -331,10 +295,9 @@ parameter_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
 {-
  - 11.1.1.1.1.1	compound_statement → begin compound_statement'
  -}
-compound_statement :: State -> State
-compound_statement e	=  e
-			$> match (RES "begin")
-			$> compound_statement'
+compound_statement :: Production
+compound_statement ts	=   match (RES "begin") ts
+			>>= compound_statement'
 	where
 		first = [RES "begin"]
 		follow = [DELIM ".", DELIM ";", RES "end", RES "else"]
@@ -343,40 +306,35 @@ compound_statement e	=  e
  - 11.1.1.1.2.1	compound_statement' → statement_list end
  - 11.1.1.1.2.2	compound_statement' → end
  -}
-compound_statement' :: State -> State
-compound_statement' e | extract e == RES "end"	=  e { tape = mover (tape e) }
-		      | extract e `elem` first	=  e
-						$> statement_list
-						$> match (RES "end")
-		      | otherwise		=  e
-						$> syntaxErr first
-						$> resolveErr follow
+compound_statement' :: Production
+compound_statement' (t:ts) | sym t == RES "end"	=   epsilon ts
+			   | sym t `elem` first	=   statement_list (t:ts)
+						>>= match (RES "end")
+			   | otherwise		=   syntaxErr first (t:ts)
+						>>= resolveErr follow
 	where
-		first = [ID "_", RES "begin", RES "while", RES "if", RES "end"]
+		first = [VAR, RES "begin", RES "while", RES "if", RES "end"]
 		follow = [DELIM ".", DELIM ";", RES "end", RES "else"]
 
 {-
  - 13.1.1.1.1.1	statement_list → statement statement_list'
  -}
-statement_list :: State -> State
-statement_list e	=  e
-			$> statement
-			$> statement_list'
+statement_list :: Production
+statement_list ts	=   statement ts
+			>>= statement_list'
 	where
-		first = [ID "_", RES "begin", RES "while", RES "if"]
+		first = [VAR, RES "begin", RES "while", RES "if"]
 		follow = [RES "end"]
 
 {-
  - 13.1.2.1.1.1	statement_list' → ; statement_list
  - 13.1.2.2.1.1	statement_list' → ε
  -}
-statement_list' :: State -> State
-statement_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
-						$> statement_list
-		  | extract e `elem` follow	=  e
-		  | otherwise			=  e
-						$> syntaxErr valid
-						$> resolveErr follow
+statement_list' :: Production
+statement_list' (t:ts) | sym t == DELIM ";"	=   statement_list ts
+		       | sym t `elem` follow	=   epsilon (t:ts)
+		       | otherwise		=   syntaxErr valid (t:ts)
+						>>= resolveErr follow
 	where
 		first = [DELIM ";"]
 		follow = [RES "end"]
@@ -388,40 +346,33 @@ statement_list' e | extract e == DELIM ";"	=  e { tape = mover (tape e) }
  - 14.5.1.1.1.1	statement → while expression do statement
  - 14.3.1.1.1.1	statement → if expression then statement statement'
  -}
-statement :: State -> State
-statement e | extract e == RES "begin"	=  e
-					$> compound_statement
-	    | extract e == RES "while"	=  e { tape = mover (tape e) }
-					$> expression
-					$> match (RES "do")
-					$> statement
-	    | extract e == RES "if"	=  e { tape = mover (tape e) }
-					$> expression
-					$> match (RES "then")
-					$> statement
-					$> statement'
-	    | extract e == ID "_"	= e
-					$> variable
-					$> match ASSIGNOP
-					$> expression
-	    | otherwise			=  e
-					$> syntaxErr first
-					$> resolveErr follow
+statement :: Production
+statement (t:ts) | sym t == RES "begin"	=  compound_statement (t:ts)
+		 | sym t == RES "while"	=   expression ts
+					>>= match (RES "do")
+					>>= statement
+		| sym t == RES "if"	=   expression ts
+					>>= match (RES "then")
+					>>= statement
+					>>= statement'
+		| sym t == VAR	=   variable ts
+					>>= match ASSIGNOP
+					>>= expression
+		| otherwise		=   syntaxErr first (t:ts)
+					>>= resolveErr follow
 	where
-		first = [RES "begin", RES "while", RES "if", ID "_"]
+		first = [RES "begin", RES "while", RES "if", VAR]
 		follow = [RES "end", RES "else", DELIM ";"]
 
 {-
  - 14.3.1.1.2.1	statement' → else statement
  - 14.3.1.1.2.2	statement' → ε
  -}
-statement' :: State -> State
-statement' e | extract e == RES "else"	=  e { tape = mover (tape e) }
-					$> statement
-	     | extract e `elem` follow	=  e
-	     | otherwise		=  e
-					$> syntaxErr valid
-					$> resolveErr follow
+statement' :: Production
+statement' (t:ts) | sym t == RES "else"	=   statement ts
+		  | sym t `elem` follow	=   epsilon (t:ts)
+		  | otherwise		=   syntaxErr valid (t:ts)
+					>>= resolveErr follow
 	where
 		first = [RES "else"]
 		follow = [DELIM ";", RES "end", RES "else"]
@@ -430,25 +381,24 @@ statement' e | extract e == RES "else"	=  e { tape = mover (tape e) }
 {-
  - 15.1.1.1.1.1	variable → id variable'
  -}
-variable e	=  e
-		$> match (ID "_")
-		$> variable'
+variable :: Production
+variable ts	=   match VAR ts
+		>>= variable'
 	where
-		first = [ID "_"]
+		first = [VAR]
 		follow = [ASSIGNOP]
 
 {-
  - 15.1.1.1.2.1	variable' → [ expression ]
  - 15.1.1.1.2.1	variable' → ε
  -}
-variable' e | extract e == DELIM "["	=  e { tape = mover (tape e) }
-					$> expression
-					$> match (DELIM "]")
-	    | extract e `elem` follow	=  e
-	    | otherwise			=  e
-					$> syntaxErr valid
+variable' :: Production
+variable' (t:ts) | sym t == DELIM "["	=   expression ts
+					>>= match (DELIM "]")
+		 | sym t `elem` follow	=   epsilon (t:ts)
+		 | otherwise		=   syntaxErr valid (t:ts)
 -- ASSIGNOP is a pretty silly thing to synch to
---					$> resolveErr follow
+--					>>= resolveErr follow
 	where
 		first = [DELIM "["]
 		follow = [ASSIGNOP]
@@ -457,25 +407,22 @@ variable' e | extract e == DELIM "["	=  e { tape = mover (tape e) }
 {-
  - 16.1.1.1.1.1	expression_list → expression expression_list'
  -}
-expression_list :: State -> State
-expression_list e	=  e
-			$> expression
-			$> expression_list'
+expression_list :: Production
+expression_list ts	=   expression ts
+			>>= expression_list'
 	where
-		first = [NUM, RES "not", DELIM "(", ID "_", SIGN]
+		first = [NUM, RES "not", DELIM "(", VAR, SIGN]
 		follow = [DELIM ")"]
 
 {-
  - 16.1.2.1.1.1	expression_list' → , expression_list
  - 16.1.2.2.1.1	expression_list' → ε
  -}
-expression_list' :: State -> State
-expression_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
-						$> expression_list
-		   | extract e == DELIM ")"	=  e
-		   | otherwise			=  e
-						$> syntaxErr valid
-						$> resolveErr follow
+expression_list' :: Production
+expression_list' (t:ts) | sym t == DELIM ","	=   expression_list ts
+			| sym t == DELIM ")"	=   epsilon (t:ts)
+			| otherwise		=   syntaxErr valid (t:ts)
+						>>= resolveErr follow
 	where
 		first = [DELIM ","]
 		follow = [DELIM ")"]
@@ -484,25 +431,22 @@ expression_list' e | extract e == DELIM ","	=  e { tape = mover (tape e) }
 {-
  - 17.1.1.1.1.1	expression → simple_expression expression'
  -}
-expression :: State -> State
-expression e	=  e
-		$> simple_expression
-		$> expression'
+expression :: Production
+expression ts	=   simple_expression ts
+		>>= expression'
 	where
-		first = [NUM, RES "not", DELIM "(", ID "_", SIGN]
+		first = [NUM, RES "not", DELIM "(", VAR, SIGN]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
 			  RES "end", RES "do", RES "then", RES "else"]
 {-
  - 17.1.1.1.2.1	expression' → relop simple_expression
  - 17.1.1.1.2.2	expression' → ε
  -}
-expression' :: State -> State
-expression' e | extract e == RELOP "_"	=  e { tape = mover (tape e) }
-					$> simple_expression
-	      | extract e `elem` follow	=  e
-	      | otherwise		=  e
-					$> syntaxErr valid
-					$> resolveErr follow
+expression' :: Production
+expression' (t:ts) | sym t == RELOP "_"		=   simple_expression ts
+		   | sym t `elem` follow	=   epsilon (t:ts)
+		   | otherwise			=   syntaxErr valid (t:ts)
+						>>= resolveErr follow
 	where
 		first = [RELOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -513,18 +457,15 @@ expression' e | extract e == RELOP "_"	=  e { tape = mover (tape e) }
  - 18.1.1.1.1.1	simple_expression → term simple_expression'
  - 18.2.1.1.1.1	simple_expression → sign term simple_expression'
  -}
-simple_expression :: State -> State
-simple_expression e | extract e == SIGN		=  e { tape = mover (tape e) }
-						$> term
-						$> simple_expression'
-		    | extract e `elem` first	=  e
-						$> term
-						$> simple_expression'
-		    | otherwise			=  e
-						$> syntaxErr first
-						$> resolveErr follow
+simple_expression :: Production
+simple_expression (t:ts) | sym t == SIGN	=   term ts
+						>>= simple_expression'
+			 | sym t `elem` first	=   term (t:ts)
+						>>= simple_expression'
+			 | otherwise		=   syntaxErr first (t:ts)
+						>>= resolveErr follow
 	where
-		first = [ID "_", DELIM "(", RES "not", NUM, SIGN]
+		first = [VAR, DELIM "(", RES "not", NUM, SIGN]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
 			  RES "end", RES "then", RES "else", RELOP "_"]
 
@@ -532,14 +473,12 @@ simple_expression e | extract e == SIGN		=  e { tape = mover (tape e) }
  - 18.3.2.1.1.1	simple_expression' → addop term simple_expression'
  - 18.3.2.2.1.1	simple_expression' → ε
  -}
-simple_expression' :: State -> State
-simple_expression' e | extract e == ADDOP "_"	=  e { tape = mover (tape e) }
-						$> term
-						$> simple_expression'
-		     | extract e `elem` follow	=  e
-		     | otherwise		=  e
-						$> syntaxErr valid
-						$> resolveErr follow
+simple_expression' :: Production
+simple_expression' (t:ts) | sym t == ADDOP "_"	=   term ts
+						>>= simple_expression'
+			  | sym t `elem` follow	=   epsilon (t:ts)
+			  | otherwise		=   syntaxErr valid (t:ts)
+						>>= resolveErr follow
 	where
 		first = [ADDOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
@@ -548,12 +487,11 @@ simple_expression' e | extract e == ADDOP "_"	=  e { tape = mover (tape e) }
 {-
  - 19.1.1.1.1.1	term → factor term'
  -}
-term :: State -> State
-term e	=  e
-	$> factor
-	$> term'
+term :: Production
+term ts	=   factor ts
+	>>= term'
 	where
-		first = [ID "_", DELIM "(", RES "not", NUM]
+		first = [VAR, DELIM "(", RES "not", NUM]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
 			  RES "end", RES "do", RES "then", RES "else",
 			  RELOP "_", ADDOP "_"]
@@ -562,13 +500,11 @@ term e	=  e
  - 19.2.2.1.1.1	term' → mulop term
  - 19.2.2.2.1.1	term' → ε
  -}
-term' :: State -> State
-term' e	| extract e == MULOP "_"	=  e { tape = mover (tape e) }
-					$> term
-	| extract e `elem` follow	=  e
-	| otherwise			=  e
-					$> syntaxErr valid
-					$> resolveErr follow
+term' :: Production
+term' (t:ts)	| sym t == MULOP "_"	=   term ts
+		| sym t `elem` follow	=   epsilon (t:ts)
+		| otherwise		=   syntaxErr valid (t:ts)
+					>>= resolveErr follow
 	where
 		first = [MULOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -582,20 +518,16 @@ term' e	| extract e == MULOP "_"	=  e { tape = mover (tape e) }
  - 20.6.1.1.1.1	factor → ( expression )
  - 20.1.1.1.1.1	factor → id factor'
  -}
-factor :: State -> State
-factor e	| extract e == NUM		=  e { tape = mover (tape e) }
-		| extract e == ID "_" 		=  e { tape = mover (tape e) }
-						$> factor'
-		| extract e == DELIM "("	=  e { tape = mover (tape e) }
-						$> expression
-						$> match (DELIM ")")
-		| extract e == RES "not"	=  e { tape = mover (tape e) }
-						$> factor
-		| otherwise			=  e
-						$> syntaxErr first
-						$> resolveErr follow
+factor :: Production
+factor (t:ts)	| sym t == NUM			=   epsilon ts
+		| sym t == VAR 		=   factor' ts
+		| sym t == DELIM "("		=   expression ts
+						>>= match (DELIM ")")
+		| sym t == RES "not"		=   factor ts
+		| otherwise			=   syntaxErr first (t:ts)
+						>>= resolveErr follow
 	where
-		first = [NUM, ID "_", DELIM "(", RES "not"]
+		first = [NUM, VAR, DELIM "(", RES "not"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
 			  RES "end", RES "do", RES "then", RES "else",
 			  RELOP "_", ADDOP "_", MULOP "_"]
@@ -605,17 +537,14 @@ factor e	| extract e == NUM		=  e { tape = mover (tape e) }
  - 20.1.1.1.2.2	factor' → [ expression ]
  - 20.1.1.1.2.3	factor' → ε
  -}
-factor' :: State -> State
-factor' e | extract e == DELIM "("	=  e { tape = mover (tape e) }
-					$> expression_list
-					$> match (DELIM ")")
-	  | extract e == DELIM "["	=  e { tape = mover (tape e) }
-					$> expression
-					$> match (DELIM "]")
-	  | extract e `elem` follow	=  e
-	  | otherwise			=  e
-					$> syntaxErr valid
-					$> resolveErr follow
+factor' :: Production
+factor' (t:ts) | sym t == DELIM "("	=   expression_list ts
+					>>= match (DELIM ")")
+	  | sym t == DELIM "["		=   expression ts
+					>>= match (DELIM "]")
+	  | sym t `elem` follow		=   epsilon (t:ts)
+	  | otherwise			=   syntaxErr valid (t:ts)
+					>>= resolveErr follow
 	where
 		first = [DELIM "(", DELIM "["]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
