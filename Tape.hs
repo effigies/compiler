@@ -24,11 +24,11 @@ tapify' :: a -> [a] -> Tape a
 tapify' trail = tapify . (++ [trail])
 
 detape :: Tape a -> [a]
-detape (Tape l h r) = (reverse l) ++ [h] ++ r
+detape (Tape l h r) = reverse l ++ h : r
 
 -- Motions on a tape
 mover, movel :: (Show a) => Tape a -> Tape a
-mover (Tape    ls  h    [] ) = error (show (reverse (h:ls)))
+mover (Tape    ls  h    [] ) = error . show . reverse $ (h:ls)
 mover (Tape    ls  h (r:rs)) = Tape (h:ls) r    rs
 
 movel (Tape    []  h    rs ) = error (show (h:rs))

@@ -1,28 +1,28 @@
 {- Match.hs
  -}
 
-module Match ( match, matchSynch, matchEOF ) where
+module Match ( match, matchSynch ) where
 
 {- We need to know about Symbols -}
-import Defs
-import Tape
-import Test
-import Error
+import Symbol ( Symbol ( SYNTAXERR ) )
+import Defs ( Token, sym )
+import Production ( Production )
+import Error ( syntaxErr, resolveErr )
 
 {- match - match exact symbols
  - Not for use with generic symbols (like IDs or literals)
  -}
-match :: Symbol -> State -> State
-match s st | extract st == s	= st { tape = mover (tape st) }
-	   | otherwise		= syntaxErr [s] st
+match :: Symbol -> Production
+match s (t:ts)	| sym t == s			= return ts
+		| otherwise			= syntaxErr [s] (t:ts)
+
 
 -- matchSync
 -- If we're matching something we'd like to call a synchronizing token, then
 -- resolve any errors right away.
-matchSynch :: Symbol -> State -> State
-matchSynch s st | extract st == s	= st { tape = mover (tape st) }
-		| otherwise		= resolveErr [s] (syntaxErr [s] st)
-
-matchEOF :: State -> State
-matchEOF st | extract st == EOF = st
-	    | otherwise		= syntaxErr [EOF] st
+matchSynch :: Symbol -> Production
+matchSynch s ts = do
+			ts'@(t:_) <- match s ts
+			case sym t of
+				SYNTAXERR _ _	-> resolveErr [s] ts'
+				_		-> return ts'

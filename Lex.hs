@@ -3,12 +3,15 @@
  -
  -}
 
-import IO
-import Monad
-import Defs
-import PreProcess
-import Token
-import Tape
+import Tape (tapify')
+import Defs (Token (Token), sym, Line (Line, NoLine) )
+import Token (tokenize)
+import PreProcess (fixup)
+
+import Symbol (	Symbol (REF), isLexErr, isID )
+
+import IO (openFile, Handle, hPutStrLn, hClose, IOMode (WriteMode)) 
+import Monad (mapM, when)
 
 main :: IO ()
 main = do
@@ -17,7 +20,7 @@ main = do
 	listingFile	<- openFile "listing" WriteMode
 	tokenFile	<- openFile "tokens"  WriteMode
 	writeList listingFile NoLine tokens
-	mapM (hPutStrLn tokenFile . show) tokens
+	mapM_ (hPutStrLn tokenFile . show) tokens
 	hClose listingFile
 	hClose tokenFile
 

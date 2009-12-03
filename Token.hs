@@ -20,7 +20,9 @@
 
 module Token ( tokenize, reserved, isReserved ) where
 
-import Defs ( Symbol (..), LexErrType (UNREC), Type (NULL_t), NameSpace (GLOBAL) )
+import Symbol ( Symbol (..), LexErrType (UNREC) )
+import Type ( Type (NULL_t) )
+import NameSpace ( NameSpace (GLOBAL) )
 
 import Data.List ( nub )
 import Tape      ( Tape(Tape), mover, cutl, left' )
