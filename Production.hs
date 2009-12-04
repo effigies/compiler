@@ -2,7 +2,7 @@
  - Define the mode of computation for our grammar productions
  -}
 
-module Production ( Production, epsilon,
+module Production ( Production, Compute, Context (Context), epsilon, (=>>=),
 		getTable, getType, getScope, putTable, putType, putScope,
 		pushScope, popScope, setType,
 		typeof
@@ -45,6 +45,10 @@ type Production = [Token] -> Compute [Token]
 
 epsilon :: Production
 epsilon = return
+
+infixl 1 =>>=
+(=>>=) :: Monad m => m a -> m b -> m a
+x =>>= f = x >>= \n -> f >> return n
 
 {- Get and put methods for each field in the State -}
 getTable :: Compute [Symbol]

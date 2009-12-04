@@ -3,6 +3,8 @@
  -
  -}
 
+module Lex ( scan ) where
+
 import Tape (tapify')
 import Defs (Token (Token), sym, Line (Line, NoLine) )
 import Token (tokenize)

@@ -7,29 +7,26 @@ module Grammar ( program ) where
 
 import Symbol ( Symbol (..) )
 import Defs ( sym )
-import Production ( Production, epsilon, getTable, pushScope, popScope )
+import Production ( Production, epsilon, getTable, pushScope, popScope, (=>>=) )
 import Match ( match, matchSynch )
 import Error ( syntaxErr, resolveErr )
 import Test
 
-{- I feel the e convention for the list of tokens may be a bit unintuitive, so
- - I'll explain. I use this because the full list of tokens is identical to the
- - output of matching a null, or epsilon, production. Thus, we behave as if
- - each production first matches a null symbol, and in the case of actual null
- - productions, we follow the grammar. -}
+{- Remember that we have a state/writer monad Compute, and
+ - Production = [Token] -> Compute [Token] -}
 
 {-
  - 1.1.1.1.1.1	program → program id ( identifier_list ) ; program'
  -}
 
 program :: Production
-program ts	=   match (RES "program") ts
-		>>= match VAR
-		>>= match (DELIM "(")
-		>>= identifier_list
-		>>= match (DELIM ")")
-		>>= matchSynch (DELIM ";")
-		>>= program'
+program ts   = match (RES "program") ts
+	   >>= match VAR
+	   >>= match (DELIM "(")
+	   >>= identifier_list
+	   >>= match (DELIM ")")
+	   >>= matchSynch (DELIM ";")
+	   >>= program'
 	where
 		first = [RES "program"]
 		follow = [EOF]
@@ -39,11 +36,11 @@ program ts	=   match (RES "program") ts
  - 1.1.1.1.2.2	program' → program''
  -}
 program' :: Production
-program' (t:ts) | sym t == RES "var"	=   declarations (t:ts)
-					>>= program''
-	   	| sym t `elem` first	=   program'' (t:ts)
-		| otherwise		=   syntaxErr first (t:ts)
-					>>= resolveErr follow
+program' (t:ts) | sym t == RES "var"   = declarations (t:ts)
+				     >>= program''
+	   	| sym t `elem` first   = program'' (t:ts)
+		| otherwise	       = syntaxErr first (t:ts)
+				     >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin", RES "var"]
 		follow = [EOF]
@@ -53,11 +50,11 @@ program' (t:ts) | sym t == RES "var"	=   declarations (t:ts)
  - 1.1.1.1.3.2	program'' → program'''
  -}
 program'' :: Production
-program'' (t:ts) | sym t == RES "function"	=   subprogram_declarations (t:ts)
-						>>= program'''
-		 | sym t == RES "begin"		=   program''' (t:ts)
-		 | otherwise			=   syntaxErr first (t:ts)
-						>>= resolveErr follow
+program'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
+					   >>= program'''
+		 | sym t == RES "begin"	     = program''' (t:ts)
+		 | otherwise		     = syntaxErr first (t:ts)
+					   >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin"]
 		follow = [EOF]
@@ -66,10 +63,11 @@ program'' (t:ts) | sym t == RES "function"	=   subprogram_declarations (t:ts)
  - 1.1.1.1.4.1	program''' → compound_statement .
  -}
 program''' :: Production
-program''' ts	=   compound_statement ts
-		>>= match DOT
-		>>= match EOF
-		>>= resolveErr follow
+program''' ts   = compound_statement ts
+	     =>>= tellName
+	      >>= match DOT
+	      >>= match EOF
+	      >>= resolveErr follow
 	where
 		first = [RES "begin"]
 		follow = [EOF]
@@ -211,13 +209,13 @@ subprogram_declaration' (t:ts)	| sym t == RES "var"	=   declarations (t:ts)
  - 7.1.1.1.1.2	subprogram_declaration'' → compound_statement
  -}
 subprogram_declaration'' :: Production
-subprogram_declaration'' (t:ts) | sym t == RES "function"	=   subprogram_declarations (t:ts)
-								>>= compound_statement
-								>>= \n -> popScope >> return n
-				| sym t == RES "begin"		=   compound_statement (t:ts)
-								>>= \n -> popScope >> return n
-				| otherwise			=   syntaxErr first (t:ts)
-								>>= resolveErr follow
+subprogram_declaration'' (t:ts) | sym t == RES "function"  = subprogram_declarations (t:ts)
+							 >>= compound_statement
+							=>>= popScope
+				| sym t == RES "begin"	   = compound_statement (t:ts)
+							=>>= popScope
+				| otherwise		   = syntaxErr first (t:ts)
+							 >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin"]
 		follow = [DELIM ";"]
@@ -232,20 +230,20 @@ subprogram_head ts	=   do
 
 				REF n <- return $ sym t
 				tab <- getTable
-				ID fun tp scope <- return $ tab !! n
+				ID fun tp scope <- return $ tab !! (n - 1)
 				pushScope fun
+				tellName
 
 				subprogram_head' ts''
 	where
 		first = [RES "function"]
 		follow = [RES "var", RES "function", RES "begin"]
-
 {-
  - 8.1.1.1.2.1	subprogram_head' → ( parameter_list ) subprogram_head'''
  - 8.1.1.1.2.2	subprogram_head' → subprogram_head'''
  -}
 subprogram_head' :: Production
-subprogram_head' (t:ts) | sym t == DELIM "("	=   parameter_list (t:ts)
+subprogram_head' (t:ts) | sym t == DELIM "("	=   parameter_list ts
 						>>= match (DELIM ")")
 						>>= subprogram_head''
 			| sym t == DELIM ":"	=   subprogram_head'' (t:ts)
@@ -355,7 +353,7 @@ statement (t:ts) | sym t == RES "begin"	=  compound_statement (t:ts)
 					>>= match (RES "then")
 					>>= statement
 					>>= statement'
-		| sym t == VAR	=   variable ts
+		| sym t == VAR		=   variable (t:ts)
 					>>= match ASSIGNOP
 					>>= expression
 		| otherwise		=   syntaxErr first (t:ts)
