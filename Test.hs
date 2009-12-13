@@ -6,7 +6,7 @@ import Defs
 import NameSpace ( NameSpace )
 import Production ( Production, Compute, getScope )
 
-import Control.Monad.Writer (MonadWriter, tell)
+import Control.Monad.Writer (tell)
 
 debug :: [Token] -> Compute ()
 debug (t:ts) = tell [show t]

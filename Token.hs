@@ -28,8 +28,7 @@ import Data.List ( nub )
 import Tape      ( Tape(Tape), mover, cutl, left' )
 import Char      ( isDigit, isAlpha, isAlphaNum, isSpace )
 
-contains :: Eq a => [a] -> a -> Bool
-contains = flip elem
+import Util	( contains )
 
 -- Shorthand
 type Stream = Tape Char

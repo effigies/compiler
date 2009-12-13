@@ -9,9 +9,10 @@ module Production ( Production, Compute, Context (Context), epsilon, (=>>=),
 		)
 	where
 
-import Control.Monad (liftM)
-import Control.Monad.State (StateT, get, put)
+import Control.Monad (liftM, ap)
+import Control.Monad.State
 import Control.Monad.Writer (Writer)
+import Control.Applicative (Applicative, pure, (<*>), WrappedMonad)
 
 import Symbol ( Symbol (ID, REF, INT, REAL, BIGREAL, LEXERR ) )
 import Type ( Type ( REAL_t, INT_t, NULL_t ) )
@@ -38,8 +39,6 @@ data Context =	Context {
  - reasonably named state; 2) computation better describes what it's hiding.
  -}
 type Compute = StateT Context (Writer [String])
-
---runComputation = runWriter
 
 type Production = [Token] -> Compute [Token]
 

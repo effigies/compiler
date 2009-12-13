@@ -18,7 +18,7 @@ import Monad (mapM, when)
 main :: IO ()
 main = do
 	input <- getContents
-	(table, tokens) <- return . scan . lines $ input
+	(table, tokens) <- return . tabulate . scan . lines $ input
 	listingFile	<- openFile "listing" WriteMode
 	tokenFile	<- openFile "tokens"  WriteMode
 	writeList listingFile NoLine tokens
@@ -33,8 +33,8 @@ writeList file l (Token l'@(Line n text) s:ts) = do
 	when (isLexErr s) $ hPutStrLn file (show s)
 	writeList file l' ts
 
-scan :: [String] -> ([Symbol],[Token])
-scan input = tabulate (zipWith Line [1..] input >>= scan' >>= fixup)
+scan :: [String] -> [Token]
+scan input = zipWith Line [1..] input >>= scan' >>= fixup
 
 scan' :: Line -> [Token]
 scan' l@(Line _ text) = map (Token l) (tokenize (tapify' '\0' text))

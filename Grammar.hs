@@ -21,7 +21,7 @@ import Test
 
 program :: Production
 program ts   = match (RES "program") ts
-	   >>= match VAR
+	   >>= matchDecl
 	   >>= match (DELIM "(")
 	   >>= identifier_list
 	   >>= match (DELIM ")")
@@ -76,8 +76,8 @@ program''' ts   = compound_statement ts
  - 2.1.1.1.1.1	identifier_list → id identifier_list'
  -}
 identifier_list :: Production
-identifier_list ts	=   match VAR ts
-			>>= identifier_list'
+identifier_list ts   =   match VAR ts
+		   >>= identifier_list'
 	where
 		first = [VAR]
 		follow = [DELIM ")"]
@@ -87,10 +87,10 @@ identifier_list ts	=   match VAR ts
  - 2.1.2.2.1.1	identifier_list' → ε
  -}
 identifier_list' :: Production
-identifier_list' (t:ts) | sym t == DELIM ","	=   identifier_list ts
-			| sym t == DELIM ")"	=   epsilon (t:ts)
-			| otherwise		=   syntaxErr valid (t:ts)
-						>>= resolveErr follow
+identifier_list' (t:ts) | sym t == DELIM ","   = identifier_list ts
+			| sym t == DELIM ")"   = epsilon (t:ts)
+			| otherwise	       = syntaxErr valid (t:ts)
+					     >>= resolveErr follow
 	where
 		first = [DELIM ","]
 		follow = [DELIM ")"]
@@ -100,12 +100,12 @@ identifier_list' (t:ts) | sym t == DELIM ","	=   identifier_list ts
  - 3.1.1.1.1.1	declarations → var id : type ; declarations'
  -}
 declarations :: Production
-declarations ts	=   match (RES "var") ts
-		>>= match VAR
-		>>= match (DELIM ":")
-		>>= type_		-- Since type is a Haskell keyword
-		>>= matchSynch (DELIM ";")
-		>>= declarations'
+declarations ts	= match (RES "var") ts
+	      >>= match VAR
+	      >>= match (DELIM ":")
+	      >>= type_		-- Since type is a Haskell keyword
+	      >>= matchSynch (DELIM ";")
+	      >>= declarations'
 	where
 		first = [RES "var"]
 		follow = [RES "function", RES "begin"]
@@ -115,10 +115,10 @@ declarations ts	=   match (RES "var") ts
  - 3.1.2.2.1.1	declarations' → ε
  -}
 declarations' :: Production
-declarations' (t:ts)	| sym t == RES "var"	=   declarations (t:ts)
-			| sym t `elem` follow	=   epsilon (t:ts)
-			| otherwise		=   syntaxErr valid (t:ts)
-						>>= resolveErr follow
+declarations' (t:ts) | sym t == RES "var"    = declarations (t:ts)
+		     | sym t `elem` follow   = epsilon (t:ts)
+		     | otherwise	     = syntaxErr valid (t:ts)
+					   >>= resolveErr follow
 	where
 		first = [RES "var"]
 		follow = [RES "function", RES "begin"]
@@ -129,16 +129,16 @@ declarations' (t:ts)	| sym t == RES "var"	=   declarations (t:ts)
  - 4.1.1.1.1.1	type → standard_type
  -}
 type_ :: Production
-type_ (t:ts) | sym t == RES "array"	=   match (DELIM "[") ts
-					>>= match (INT "_")
-					>>= match (DELIM "..")
-					>>= match (INT "_")
-					>>= match (DELIM "]")
-					>>= match (RES "of")
-					>>= standard_type
-	     | sym t `elem` first	=   standard_type (t:ts)
-	     | otherwise		=   syntaxErr first (t:ts)
-					>>= resolveErr follow
+type_ (t:ts) | sym t == RES "array"   = match (DELIM "[") ts
+				    >>= match (INT "_")
+				    >>= match (DELIM "..")
+				    >>= match (INT "_")
+				    >>= match (DELIM "]")
+				    >>= match (RES "of")
+				    >>= standard_type
+	     | sym t `elem` first     = standard_type (t:ts)
+	     | otherwise	      = syntaxErr first (t:ts)
+				    >>= resolveErr follow
 	where
 		first = [RES "integer", RES "real", RES "array"]
 		follow = [DELIM ";", DELIM ")"]
@@ -148,9 +148,9 @@ type_ (t:ts) | sym t == RES "array"	=   match (DELIM "[") ts
  - 5.2.1.1.1.1	standard_type → real
  -}
 standard_type :: Production
-standard_type (t:ts) | sym t `elem` first	=   epsilon ts
-		     | otherwise		=   syntaxErr first (t:ts)
-						>>= resolveErr follow
+standard_type (t:ts) | sym t `elem` first   = epsilon ts
+		     | otherwise	    = syntaxErr first (t:ts)
+					  >>= resolveErr follow
 	where
 		first = [RES "integer", RES "real"]
 		follow = [DELIM ";", DELIM ")"]
@@ -159,9 +159,9 @@ standard_type (t:ts) | sym t `elem` first	=   epsilon ts
  - 6.1.1.1.1.1	subprogram_declarations → subprogram_declaration ; subprogram_declarations'
  -}
 subprogram_declarations :: Production
-subprogram_declarations ts	=   subprogram_declaration ts
-				>>= matchSynch (DELIM ";")
-				>>= subprogram_declarations'
+subprogram_declarations ts   = subprogram_declaration ts
+			   >>= matchSynch (DELIM ";")
+			   >>= subprogram_declarations'
 	where
 		first = [RES "function"]
 		follow = [RES "begin"]
@@ -171,10 +171,10 @@ subprogram_declarations ts	=   subprogram_declaration ts
  - 6.1.2.2.1.1	subprogram_declarations' → ε
  -}
 subprogram_declarations' :: Production
-subprogram_declarations' (t:ts) | sym t == RES "function"	=   subprogram_declarations (t:ts)
-				| sym t == RES "begin"		=   epsilon (t:ts)
-				| otherwise			=   syntaxErr valid (t:ts)
-								>>= resolveErr follow
+subprogram_declarations' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
+				| sym t == RES "begin"	    = epsilon (t:ts)
+				| otherwise		    = syntaxErr valid (t:ts)
+							  >>= resolveErr follow
 	where
 		first = [RES "function"]
 		follow = [RES "begin"]
@@ -184,8 +184,8 @@ subprogram_declarations' (t:ts) | sym t == RES "function"	=   subprogram_declara
  - 7.1.1.1.1.1	subprogram_declaration → subprogram_head subprogram_declaration'
  -}
 subprogram_declaration :: Production
-subprogram_declaration ts	=   subprogram_head ts
-				>>= subprogram_declaration'
+subprogram_declaration ts   = subprogram_head ts
+			  >>= subprogram_declaration'
 	where
 		first = [RES "function"]
 		follow = [DELIM ";"]
@@ -195,11 +195,11 @@ subprogram_declaration ts	=   subprogram_head ts
  - 7.1.1.1.2.2	subprogram_declaration' → subprogram_declaration''
  -}
 subprogram_declaration' :: Production
-subprogram_declaration' (t:ts)	| sym t == RES "var"	=   declarations (t:ts)
-							>>= subprogram_declaration''
-				| sym t `elem` first	=   subprogram_declaration'' (t:ts)
-				| otherwise		=   syntaxErr first (t:ts)
-							>>= resolveErr follow
+subprogram_declaration' (t:ts) | sym t == RES "var"   = declarations (t:ts)
+						    >>= subprogram_declaration''
+			       | sym t `elem` first   = subprogram_declaration'' (t:ts)
+			       | otherwise	      = syntaxErr first (t:ts)
+						    >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin", RES "var"]
 		follow = [DELIM ";"]
@@ -209,13 +209,13 @@ subprogram_declaration' (t:ts)	| sym t == RES "var"	=   declarations (t:ts)
  - 7.1.1.1.1.2	subprogram_declaration'' → compound_statement
  -}
 subprogram_declaration'' :: Production
-subprogram_declaration'' (t:ts) | sym t == RES "function"  = subprogram_declarations (t:ts)
-							 >>= compound_statement
-							=>>= popScope
-				| sym t == RES "begin"	   = compound_statement (t:ts)
-							=>>= popScope
-				| otherwise		   = syntaxErr first (t:ts)
-							 >>= resolveErr follow
+subprogram_declaration'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
+							  >>= compound_statement
+							 =>>= popScope
+				| sym t == RES "begin"	    = compound_statement (t:ts)
+							 =>>= popScope
+				| otherwise		    = syntaxErr first (t:ts)
+							  >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin"]
 		follow = [DELIM ";"]
@@ -228,9 +228,7 @@ subprogram_head ts	=   do
 				(t:ts') <- match (RES "function") ts
 				ts'' <- match VAR (t:ts')
 
-				REF n <- return $ sym t
-				tab <- getTable
-				ID fun tp scope <- return $ tab !! (n - 1)
+				ID fun tp scope <- return $ sym t
 				pushScope fun
 				tellName
 
@@ -518,7 +516,7 @@ term' (t:ts)	| sym t == MULOP "_"	=   term ts
  -}
 factor :: Production
 factor (t:ts)	| sym t == NUM			=   epsilon ts
-		| sym t == VAR 		=   factor' ts
+		| sym t == VAR			=   factor' ts
 		| sym t == DELIM "("		=   expression ts
 						>>= match (DELIM ")")
 		| sym t == RES "not"		=   factor ts
