@@ -3,7 +3,7 @@
  -}
 
 module Symbol ( Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, VAR,
-		ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN,
+		ID, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN,
 		NONSENSE, SYNTAXERR),
 		LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
 		LONGID),
@@ -12,7 +12,7 @@ module Symbol ( Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, VAR,
 	where
 
 import Type (Type)
-import NameSpace (NameSpace)
+-- import SymbolTree (
 
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
@@ -25,8 +25,8 @@ data Symbol	=  WHITESPACE				-- Spaces, tabs, newlines
 		|  RELOP	String			-- = <> < > <= >=
 		|  MULOP	String			-- * / div mod and
 		|  ADDOP	String			-- + - or
-		|  ID		String NameSpace Type	-- ID
-		|  REF		Int			-- Symbol table reference
+		|  ID		String			-- ID
+-- 		|  REF		Reference		-- Symbol table reference
 		|  RES		String			-- Reserved word
 		|  BIGREAL	String			-- "Big" reals (find out)
 		|  REAL		String			-- Reals
@@ -54,8 +54,8 @@ instance Show Symbol where
 	show (MULOP s)		= "'" ++ s ++ "'"
 	show (ADDOP "_")	= "an addition operator ('+', '-', 'or')"
 	show (ADDOP s)		= "'" ++ s ++ "'"
-	show (ID s ns t)	= show ns ++ "." ++ s ++ "::" ++ show t
-	show (REF i)		= "symbol table entry " ++ show i
+	show (ID s)		= show s -- show ns ++ "." ++ s ++ "::" ++ show t
+-- 	show (REF i)		= "symbol table entry " ++ show i
 	show (RES s)		= "'" ++ s ++ "'"
 	show (BIGREAL s)	= "'" ++ s ++ "'"
 	show (REAL s)		= "'" ++ s ++ "'"
@@ -76,8 +76,8 @@ instance Eq Symbol where
 	ADDOP  _	== ADDOP "_"	= True
 	ADDOP "+"	== SIGN		= True
 	ADDOP "-"	== SIGN		= True
-	ID  _ _ _	== VAR		= True
-	REF _		== VAR		= True
+	ID  _		== VAR		= True
+-- 	REF _		== VAR		= True
 	BIGREAL _	== NUM		= True
 	REAL _		== NUM		= True
 	INT _		== NUM		= True
@@ -91,8 +91,8 @@ instance Eq Symbol where
 	ADDOP "_"	== ADDOP  _	= True
 	SIGN		== ADDOP "+"	= True
 	SIGN		== ADDOP "-"	= True
-	VAR		== ID _ _ _	= True
-	VAR		== REF _	= True
+	VAR		== ID _		= True
+-- 	VAR		== REF _	= True
 	NUM		== BIGREAL _	= True
 	NUM		== REAL _	= True
 	NUM		== INT _	= True
@@ -114,14 +114,12 @@ instance Eq Symbol where
 	MULOP a		== MULOP b	= a == b
 	ADDOP a		== ADDOP b	= a == b
 	RES a		== RES b	= a == b
-	REF a		== REF b	= a == b
+-- 	REF a		== REF b	= a == b
 	BIGREAL a	== BIGREAL b	= a == b
 	REAL a		== REAL b	= a == b
 	INT a		== INT b	= a == b
 	DELIM a		== DELIM b	= a == b
-	ID n s t	== ID n' s' t'	= n == n'
-				       && s == s'
-				       && t == t'
+	ID a		== ID b		= a == b
 	LEXERR _ a	== LEXERR _ b	= a == b
 
 	{- I really only care that a syntax error be a syntax error.
@@ -148,7 +146,7 @@ instance Show LexErrType where
 	show LONGID	= "Extra Long Identifier"
 
 isID :: Symbol -> Bool
-isID (ID _ _ _)	= True
+isID (ID _)	= True
 isID _		= False
 
 isLexErr :: Symbol -> Bool

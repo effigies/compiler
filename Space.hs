@@ -1,12 +1,13 @@
 module Space (Space (Space), label, meta, local, subs,
 		insertLocal, insertSub, lookupLocal, lookupSub, lookupBoth,
-		Cxt (Cxt), parent, siblings,
+		checkLocal, checkSub, checkBoth,
+		Cxt (Cxt, Top), parent, siblings,
 		Spacer, descend, ascend, top, trail, labels, metatrail)
 	where
 
 import Prelude hiding (lookup)
 import Data.Map as Map hiding (map)
-import Monad (mplus)
+import Monad (mplus, liftM)
 
 {- A space is a structure with a set of local objects and a set of subspaces.
  - 
@@ -36,11 +37,20 @@ insertSub sub@(Space k _ _ _) space = space {
 		subs = insert k sub (subs space)
 	}
 
+checkLocal :: Ord a => a -> Space a b -> Bool
+checkLocal k (Space _ _ l _) = member k l
+
+checkSub :: Ord a => a -> Space a b -> Bool
+checkSub k (Space _ _ _ s) = member k s
+
+checkBoth :: Ord a => a -> Space a b -> Bool
+checkBoth k s = checkLocal k s || checkSub k s
+
 lookupLocal :: Ord a => a -> Space a b -> Maybe b
 lookupLocal k (Space _ _ l _) = lookup k l
 
 lookupSub :: Ord a => a -> Space a b -> Maybe b
-lookupSub k (Space _ _ _ s) = lookup k s >>= return . meta
+lookupSub k (Space _ _ _ s) = meta `liftM` lookup k s
 
 lookupBoth :: Ord a => a -> Space a b -> Maybe b
 lookupBoth k s = lookupLocal k s `mplus` lookupSub k s

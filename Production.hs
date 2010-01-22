@@ -3,20 +3,18 @@
  -}
 
 module Production ( Production, Compute, Context (Context), epsilon, (=>>=),
-		getTable, getType, getScope, putTable, putType, putScope,
-		pushScope, popScope, setType,
-		typeof
+			pushType, popType, peekType
 		)
 	where
 
-import Control.Monad (liftM, ap)
+import Control.Monad (liftM)
 import Control.Monad.State
 import Control.Monad.Writer (Writer)
-import Control.Applicative (Applicative, pure, (<*>), WrappedMonad)
 
-import Symbol ( Symbol (ID, REF, INT, REAL, BIGREAL, LEXERR ) )
+import Space (ascend, descend)
+import Symbol ( Symbol (ID, INT, REAL, BIGREAL, LEXERR ) )
 import Type ( Type ( REAL_t, INT_t, NULL_t ) )
-import NameSpace ( NameSpace ( GLOBAL, NS ) )
+import Display (Display)
 import Defs ( Token )
 
 {- For aspects of compiler that can't be resolved purely by PDA, we
@@ -24,9 +22,8 @@ import Defs ( Token )
  - and the local scope should cover us.
  -}
 data Context =	Context {
-			table :: [Symbol],
-			ctype :: Type,
-			scope :: NameSpace
+			display :: Display,
+			types :: [Type]
 		}
 	deriving (Show)
 
@@ -38,7 +35,7 @@ data Context =	Context {
  - I choose to call it Compute because 1) I already have something that is
  - reasonably named state; 2) computation better describes what it's hiding.
  -}
-type Compute = StateT Context (Writer [String])
+type Compute = StateT Context (Writer ([String],[String]))
 
 type Production = [Token] -> Compute [Token]
 
@@ -50,31 +47,55 @@ infixl 1 =>>=
 x =>>= f = x >>= \n -> f >> return n
 
 {- Get and put methods for each field in the State -}
-getTable :: Compute [Symbol]
-getTable = liftM table get
+getDisplay :: Compute Display
+getDisplay = display `liftM` get
 
-getType :: Compute Type
-getType = liftM ctype get
+getTypes :: Compute [Type]
+getTypes = types `liftM` get
 
-getScope :: Compute NameSpace
-getScope = liftM scope get
-
-putTable :: [Symbol] -> Compute ()
-putTable tab = do
+putDisplay :: Display -> Compute ()
+putDisplay d = do
 		context <- get
-		put context { table = tab}
+		put context { display = d }
 
-putType :: Type -> Compute ()
-putType tp = do
+putTypes :: [Type] -> Compute ()
+putTypes ts = do
 		context <- get
-		put context { ctype = tp }
+		put context { types = ts }
 
-putScope :: NameSpace -> Compute ()
-putScope ns = do
+modifyDisplay :: (Display -> Display) -> Compute ()
+modifyDisplay f = do
 		context <- get
-		put context { scope = ns }
+		put context { display = f $ display context }
 
-{- Slightly more complex, and rather more useful for actual calling -}
+modifyTypes :: ([Type] -> [Type]) -> Compute ()
+modifyTypes f = do
+		context <- get
+		put context { types = f $ types context }
+
+{- Slightly more sophisticated actions on our state -}
+peekType :: Compute Type
+peekType = head `liftM` getTypes
+
+pushType :: Type -> Compute ()
+pushType t = modifyTypes (t:) 
+
+popType :: Compute Type
+popType = peekType =>>= modifyTypes (tail)
+
+ascendDisplay :: Compute ()
+ascendDisplay = ascend `liftM` getDisplay >>= putDisplay
+
+-- insertDisplay :: Display -> Compute String
+
+descendDisplay :: String -> Compute ()
+descendDisplay key = do
+			res <- descend key `liftM` getDisplay
+			case res of
+				Just d -> putDisplay d
+				Nothing -> return ()
+
+{-
 pushScope :: String -> Compute ()
 pushScope name = do
 			ns <- getScope
@@ -90,14 +111,11 @@ popScope = do
 setType :: Symbol -> Compute ()
 setType tok = typeof tok >>= putType
 
-{- Put it all together, and we can now compute the type of any known object -}
-typeof :: Symbol -> Compute Type
-typeof (ID _ _ t) = return t
-typeof (BIGREAL _) = return REAL_t
-typeof (REAL _) = return REAL_t
-typeof (INT _) = return INT_t
+typeof :: Symbol -> Maybe Type
+typeof (BIGREAL _) = Just REAL_t
+typeof (REAL _) = Just REAL_t
+typeof (INT _) = Just INT_t
 typeof (LEXERR _ s) = typeof s
-typeof (REF n) = do
-			tab <- getTable
-			typeof (tab !! n)
-typeof _ = return NULL_t
+typeof (REF ((sub,_),name)) = lookupBoth name subspace
+typeof _ = Nothing
+-}

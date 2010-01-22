@@ -1,9 +1,14 @@
+
+module SymbolTree (Display, Reference) where
+
 import Space
 import Type
 
 
 type Display = Spacer String Type
-type Name = (Display, String)
+type Reference = (Display, String)
 
-typeof :: Name -> Maybe Type
-typeof ((subspace,_),name) = lookupBoth name subspace
+findRef :: String -> Display -> Maybe Reference
+
+inScope :: String -> Display -> Bool
+inScope = (Nothing /=) . findRef

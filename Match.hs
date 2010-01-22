@@ -15,7 +15,7 @@ import Error ( syntaxErr, resolveErr )
 match :: Symbol -> Production
 match s (t:ts)	| sym t == s			= return ts
 		| otherwise			= syntaxErr [s] (t:ts)
-
+{-
 matchDecl :: Production
 match (t@(ID name NULL_t GLOBAL) : ts) = do
 						scope <- getScope
@@ -24,7 +24,7 @@ match (t@(ID name NULL_t GLOBAL) : ts) = do
 						
 
 novel :: Symbol -> Symbol
-
+-}
 -- matchSync
 -- If we're matching something we'd like to call a synchronizing token, then
 -- resolve any errors right away.
