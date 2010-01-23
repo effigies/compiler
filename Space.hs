@@ -2,7 +2,8 @@ module Space (Space (Space), label, meta, local, subs,
 		insertLocal, insertSub, lookupLocal, lookupSub, lookupBoth,
 		checkLocal, checkSub, checkBoth,
 		Cxt (Cxt, Top), parent, siblings,
-		Spacer, descend, ascend, top, trail, labels, metatrail)
+		Spacer, descend, ascend, top, insertLocalr, insertSubr,
+		trail, labels, metatrail)
 	where
 
 import Prelude hiding (lookup)
@@ -86,6 +87,14 @@ ascend (h@(Space k _ _ _), Cxt (l, m, c, p) s) = (Space l m c (insert k h s), p)
 top :: Ord a => Spacer a b -> Space a b
 top (space, Top) = space
 top subspace = top . ascend $ subspace
+
+{- Pull insertLocal into our zipper -}
+insertLocalr :: Ord a => a -> b -> Spacer a b -> Spacer a b
+insertLocalr k v (space, cxt) = (insertLocal k v space, cxt)
+
+{- Pull insertSub into our zipper -}
+insertSubr :: Ord a => Space a b -> Spacer a b -> Spacer a b
+insertSubr sub (space, cxt) = (insertSub sub space, cxt)
 
 {-
  - Follow the contexts up to get a sequence of (label, meta) pairs

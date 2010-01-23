@@ -1,10 +1,11 @@
 
-module Display (Display, Reference) where
+module Display (Namespace, Display, Reference) where
 
 import Space
 import Type
 import Monad (mplus)
 
+type Namespace = Space String Type
 type Display = Spacer String Type
 type Reference = (Display, String)
 
