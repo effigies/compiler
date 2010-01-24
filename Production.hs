@@ -69,4 +69,4 @@ insertNamespace :: Namespace -> Production
 insertNamespace = wrap . modifyDisplay . insertSubr
 
 insertVariable :: String -> Type -> Production
-insertVariable k v = wrap . modifyDisplay  insertLocalr k v
+insertVariable k v = wrap . modifyDisplay $ insertLocalr k v
