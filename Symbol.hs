@@ -3,16 +3,13 @@
  -}
 
 module Symbol ( Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, VAR,
-		ID, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN,
+		ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN,
 		NONSENSE, SYNTAXERR),
 		LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
 		LONGID),
 		isID, isLexErr, isSyntaxErr
 		)
 	where
-
-import Type (Type)
--- import SymbolTree (
 
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
@@ -26,7 +23,7 @@ data Symbol	=  WHITESPACE				-- Spaces, tabs, newlines
 		|  MULOP	String			-- * / div mod and
 		|  ADDOP	String			-- + - or
 		|  ID		String			-- ID
--- 		|  REF		Reference		-- Symbol table reference
+ 		|  REF		Int			-- Symbol table reference
 		|  RES		String			-- Reserved word
 		|  BIGREAL	String			-- "Big" reals (find out)
 		|  REAL		String			-- Reals

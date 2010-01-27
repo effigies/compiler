@@ -7,10 +7,12 @@ module Grammar ( program ) where
 
 import Symbol ( Symbol (..) )
 import Defs ( sym )
-import Production ( Production, epsilon, getTable, pushScope, popScope, (=>>=) )
-import Match ( match, matchSynch )
+import Production ( Production, epsilon, pushType )
+import Match ( match, matchSynch, matchProgName )
 import Error ( syntaxErr, resolveErr )
 import Test
+
+import Type ( Type (NULL_t, INT_t, REAL_t, ARRAY_t, FUNCTION_t) )
 
 {- Remember that we have a state/writer monad Compute, and
  - Production = [Token] -> Compute [Token] -}
@@ -21,7 +23,7 @@ import Test
 
 program :: Production
 program ts   = match (RES "program") ts
-	   >>= matchDecl
+	   >>= matchProgName
 	   >>= match (DELIM "(")
 	   >>= identifier_list
 	   >>= match (DELIM ")")
@@ -64,7 +66,7 @@ program'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
  -}
 program''' :: Production
 program''' ts   = compound_statement ts
-	     =>>= tellName
+-- 	     =>>= tellName
 	      >>= match DOT
 	      >>= match EOF
 	      >>= resolveErr follow
@@ -148,9 +150,10 @@ type_ (t:ts) | sym t == RES "array"   = match (DELIM "[") ts
  - 5.2.1.1.1.1	standard_type → real
  -}
 standard_type :: Production
-standard_type (t:ts) | sym t `elem` first   = epsilon ts
-		     | otherwise	    = syntaxErr first (t:ts)
-					  >>= resolveErr follow
+standard_type (t:ts) | sym t == RES "integer"	= pushType INT_t ts
+		     | sym t == RES "real"	= pushType REAL_t ts
+		     | otherwise		= syntaxErr first (t:ts)
+					      >>= resolveErr follow
 	where
 		first = [RES "integer", RES "real"]
 		follow = [DELIM ";", DELIM ")"]
@@ -211,9 +214,9 @@ subprogram_declaration' (t:ts) | sym t == RES "var"   = declarations (t:ts)
 subprogram_declaration'' :: Production
 subprogram_declaration'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
 							  >>= compound_statement
-							 =>>= popScope
+-- 							 =>>= popScope
 				| sym t == RES "begin"	    = compound_statement (t:ts)
-							 =>>= popScope
+-- 							 =>>= popScope
 				| otherwise		    = syntaxErr first (t:ts)
 							  >>= resolveErr follow
 	where
@@ -228,9 +231,9 @@ subprogram_head ts	=   do
 				(t:ts') <- match (RES "function") ts
 				ts'' <- match VAR (t:ts')
 
-				ID fun tp scope <- return $ sym t
-				pushScope fun
-				tellName
+				ID fun <- return $ sym t
+-- 				pushScope fun
+-- 				tellName
 
 				subprogram_head' ts''
 	where

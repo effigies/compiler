@@ -1,21 +1,20 @@
-module Test (samplel, errl, debug, tellName) where
+module Test (samplel, sample, errl, debug) where
 
 import Tape
 import Token
 import Defs
-import NameSpace ( NameSpace )
-import Production ( Production, Compute, getScope )
+import Compute ( Compute )
 
 import Control.Monad.Writer (tell)
 
 debug :: [Token] -> Compute ()
-debug (t:ts) = tell [show t]
-
+debug (t:ts) = tell ([show t],[])
+{-
 tellName :: Compute ()
 tellName = do
 		scope <- getScope
 		tell [ show scope ]
-
+-}
 samplel :: [String]
 samplel = [	"program example(input, output);",
 		"var x: integer;",

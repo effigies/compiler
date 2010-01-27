@@ -8,12 +8,14 @@
 
 import Symbol ( Symbol (EOF) )
 import Type ( Type (NULL_t) )
-import NameSpace ( NameSpace (GLOBAL) )
 import Defs ( Token (Token), Line (NoLine) )
 import Lex ( scan )
 import Grammar ( program )
-import Production ( Context (Context) )
+import Compute ( Context (Context) )
 import Test
+
+import Space (Space (Space), Cxt (Top))
+import Data.Map (empty)
 
 import Control.Monad.Writer (runWriter)
 import Control.Monad.State ( StateT (StateT) )
@@ -26,7 +28,7 @@ end = Token NoLine EOF
 --	mapM putStrLn (report results)
 
 parse input = let StateT parser = program $ scan input ++ [end]
-		  init = Context [] NULL_t GLOBAL
+		  init = Context (Space "GLOBAL" NULL_t empty empty, Top) []
 		in runWriter $ parser init
 
 -- report :: State -> [String]

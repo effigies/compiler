@@ -21,8 +21,6 @@
 module Token ( tokenize, reserved, isReserved ) where
 
 import Symbol ( Symbol (..), LexErrType (UNREC) )
-import Type ( Type (NULL_t) )
-import NameSpace ( NameSpace (GLOBAL) )
 
 import Data.List ( nub )
 import Tape      ( Tape(Tape), mover, cutl, left' )
@@ -118,7 +116,7 @@ wrapWord :: String -> Symbol
 wrapWord word	| word `elem` addopWords	= ADDOP	word
 		| word `elem` mulopWords	= MULOP	word
 		| word `elem` reserved		= RES	word
-		| otherwise		 	= ID	word	GLOBAL	NULL_t
+		| otherwise		 	= ID	word
 
 -- Match numbers
 matchInt t@(Tape _ h _) | isDigit h = matchInt (mover t)

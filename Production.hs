@@ -11,11 +11,17 @@ import Control.Monad (liftM)
 
 import Compute ( Compute, Context (Context),
 			getTypes, modifyTypes, modifyTypes,
-			getDisplay, modifyDisplay, putDisplay)
-import Space (ascend, descend, insertSubr, insertLocalr)
-import Type ( Type (ARRAY_t), baseType )
+			getDisplay, modifyDisplay, putDisplay,
+			tellLeft, tellRight)
+import Space (Space (Space), Cxt (Top), Spacer, ascend, descend, insertSubr,
+		insertLocalr)
+import Type ( Type (ARRAY_t, NULL_t, INT_t, REAL_t, FUNCTION_t), baseType )
 import Display (Display, Namespace)
 import Defs ( Token )
+import Data.Map (empty)
+
+import Control.Monad.Writer ( runWriter )
+import Control.Monad.State ( runStateT )
 
 {-
  - Every production will take a list of tokens, act upon it, potentially
@@ -49,8 +55,10 @@ popType = head `liftM` modifyTypes tail
 flushTypes :: Compute [Type]
 flushTypes = modifyTypes $ const []
 
-makeArray :: Int -> Int -> Production
-makeArray l u = wrap $ modifyTypes (\(b:ts) -> ARRAY_t l u b : ts)
+prepArray :: Int -> Int -> Production
+prepArray l u = wrap $ modifyTypes (\(b:ts) -> ARRAY_t l u b : ts)
+
+
 
 ascendDisplay :: Production
 ascendDisplay = wrap $ modifyDisplay ascend
@@ -58,15 +66,32 @@ ascendDisplay = wrap $ modifyDisplay ascend
 {- For the moment, we'll be unsafe, and just not do anything if we cannot
  - descend
  -}
-descendDisplay :: String -> Production
-descendDisplay key = wrap $ do
+descendDisplay :: String -> Compute ()
+descendDisplay key = do
 			res <- descend key `liftM` getDisplay
 			case res of
 				Just d -> putDisplay d
 				Nothing -> return ()
 
-insertNamespace :: Namespace -> Production
-insertNamespace = wrap . modifyDisplay . insertSubr
+insertNamespace :: Namespace -> Compute Display
+insertNamespace = modifyDisplay . insertSubr
 
-insertVariable :: String -> Type -> Production
-insertVariable k v = wrap . modifyDisplay $ insertLocalr k v
+insertVariable :: String -> Type -> Compute Display
+insertVariable k v = modifyDisplay $ insertLocalr k v
+
+insertDecl :: String -> Production
+insertDecl name = wrap $ insertVariable name `liftM` popType
+
+insertParam :: String -> Production
+insertParam name = wrap $ insertVariable name `liftM` peekType
+
+insertFunction :: String -> Production
+insertFunction name = wrap $ do
+			(t:ts) <- flushTypes
+			f <- return $ FUNCTION_t (reverse ts) t
+			insertNamespace $ Space name f empty empty
+			descendDisplay name
+{-
+makeFunction :: [Type] -> Type
+makeFunction (t:ts) = FUNCTION_t (reverse ts) t
+-}

@@ -10,6 +10,8 @@ import Defs (Token (Token), sym, Line (Line, NoLine) )
 import Token (tokenize)
 import PreProcess (fixup)
 
+import Test (samplel)
+
 import Symbol (	Symbol (REF), isLexErr, isID )
 
 import IO (openFile, Handle, hPutStrLn, hClose, IOMode (WriteMode)) 
