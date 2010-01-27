@@ -4,6 +4,7 @@
 
 module Production ( Production, epsilon, wrap,
 			pushType, popType, peekType, flushTypes,
+			makeArray
 		)
 	where
 
@@ -45,8 +46,8 @@ wrap f n = f >> return n
 peekType :: Compute Type
 peekType = head `liftM` getTypes
 
-pushType :: Type -> Production
-pushType = wrap . modifyTypes . (:) 
+pushType :: Type -> Compute [Type]
+pushType = modifyTypes . (:) 
 
 popType :: Compute Type
 popType = head `liftM` modifyTypes tail
@@ -55,8 +56,8 @@ popType = head `liftM` modifyTypes tail
 flushTypes :: Compute [Type]
 flushTypes = modifyTypes $ const []
 
-prepArray :: Int -> Int -> Production
-prepArray l u = wrap $ modifyTypes (\(b:ts) -> ARRAY_t l u b : ts)
+makeArray :: Production
+makeArray = wrap $ modifyTypes (\(b:a:ts) -> a { baseType = b } : ts)
 
 
 
@@ -91,7 +92,3 @@ insertFunction name = wrap $ do
 			f <- return $ FUNCTION_t (reverse ts) t
 			insertNamespace $ Space name f empty empty
 			descendDisplay name
-{-
-makeFunction :: [Type] -> Type
-makeFunction (t:ts) = FUNCTION_t (reverse ts) t
--}

@@ -1,15 +1,18 @@
 {- Match.hs
  -}
 
-module Match ( match, matchSynch, matchProgName ) where
+module Match ( match, matchSynch,
+		matchProgName, matchLowerBound, matchUpperBound
+	) where
 
 {- We need to know about Symbols -}
-import Symbol ( Symbol ( SYNTAXERR, VAR, ID ) )
+import Symbol ( Symbol ( SYNTAXERR, VAR, ID, INT ) )
 import Defs ( Token (Token), sym )
 import Compute
 import Production
 import Space
 import Error ( syntaxErr, resolveErr )
+import Type
 
 {- Here's our most general matcher.
  - On a match, it executes a function on the matched token, and returns
@@ -31,7 +34,22 @@ matchProgName :: Production
 matchProgName = matchWithEffects f return VAR
 	where
 		f (Token _ (ID n)) = modifyDisplay (\(s,t) -> (s { label = n }, t))
-				
+
+matchLowerBound :: Production
+matchLowerBound = matchWithEffects f return (INT "_")
+	where
+		f (Token _ (INT n)) = do
+					t <- popType
+					pushType $ t { lBound = read n }
+					return ()
+
+matchUpperBound :: Production
+matchUpperBound = matchWithEffects f return (INT "_")
+	where
+		f (Token _ (INT n)) = do
+					t <- popType
+					pushType $ t { uBound = read n }
+					return ()
 
 -- matchSync
 -- If we're matching something we'd like to call a synchronizing token, then

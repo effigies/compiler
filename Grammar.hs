@@ -7,8 +7,8 @@ module Grammar ( program ) where
 
 import Symbol ( Symbol (..) )
 import Defs ( sym )
-import Production ( Production, epsilon, pushType )
-import Match ( match, matchSynch, matchProgName )
+import Production ( Production, wrap, epsilon, pushType, makeArray )
+import Match
 import Error ( syntaxErr, resolveErr )
 import Test
 
@@ -131,16 +131,18 @@ declarations' (t:ts) | sym t == RES "var"    = declarations (t:ts)
  - 4.1.1.1.1.1	type → standard_type
  -}
 type_ :: Production
-type_ (t:ts) | sym t == RES "array"   = match (DELIM "[") ts
-				    >>= match (INT "_")
-				    >>= match (DELIM "..")
-				    >>= match (INT "_")
-				    >>= match (DELIM "]")
-				    >>= match (RES "of")
-				    >>= standard_type
-	     | sym t `elem` first     = standard_type (t:ts)
-	     | otherwise	      = syntaxErr first (t:ts)
-				    >>= resolveErr follow
+type_ (t:ts) | sym t == RES "array" = pushType (ARRAY_t 0 0 NULL_t)
+				  >>  match (DELIM "[") ts
+				  >>= matchLowerBound
+				  >>= match (DELIM "..")
+				  >>= matchUpperBound
+				  >>= match (DELIM "]")
+				  >>= match (RES "of")
+				  >>= standard_type
+				  >>= makeArray
+	     | sym t `elem` first   = standard_type (t:ts)
+	     | otherwise	    = syntaxErr first (t:ts)
+				  >>= resolveErr follow
 	where
 		first = [RES "integer", RES "real", RES "array"]
 		follow = [DELIM ";", DELIM ")"]
@@ -150,8 +152,8 @@ type_ (t:ts) | sym t == RES "array"   = match (DELIM "[") ts
  - 5.2.1.1.1.1	standard_type → real
  -}
 standard_type :: Production
-standard_type (t:ts) | sym t == RES "integer"	= pushType INT_t ts
-		     | sym t == RES "real"	= pushType REAL_t ts
+standard_type (t:ts) | sym t == RES "integer"	= pushType INT_t >> return ts
+		     | sym t == RES "real"	= pushType REAL_t >> return ts
 		     | otherwise		= syntaxErr first (t:ts)
 					      >>= resolveErr follow
 	where

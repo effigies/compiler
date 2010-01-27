@@ -2,7 +2,8 @@
  - Define the types recognized by our language
  -}
 
-module Type ( Type (INT_t, REAL_t, ARRAY_t, FUNCTION_t, NULL_t), sizeof, baseType )
+module Type ( Type (INT_t, REAL_t, ARRAY_t, FUNCTION_t, NULL_t),
+		sizeof, lBound, uBound, baseType )
 	where
 
 import Util (join)
