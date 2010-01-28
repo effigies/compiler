@@ -4,15 +4,17 @@
 
 module Production ( Production, epsilon, wrap,
 			pushType, popType, peekType, flushTypes,
-			makeArray
+			makeArray, insertVariable, makeDecl, makeParam,
+			makeFunction
 		)
 	where
 
 import Control.Monad (liftM)
 
 import Compute ( Compute, Context (Context),
-			getTypes, modifyTypes, modifyTypes,
+			getTypes, modifyTypes, putTypes,
 			getDisplay, modifyDisplay, putDisplay,
+			getName, modifyName, putName,
 			tellLeft, tellRight)
 import Space (Space (Space), Cxt (Top), Spacer, ascend, descend, insertSubr,
 		insertLocalr)
@@ -80,15 +82,22 @@ insertNamespace = modifyDisplay . insertSubr
 insertVariable :: String -> Type -> Compute Display
 insertVariable k v = modifyDisplay $ insertLocalr k v
 
-insertDecl :: String -> Production
-insertDecl name = wrap $ insertVariable name `liftM` popType
+makeDecl :: Production
+makeDecl = wrap $ do
+		n <- getName
+		t <- popType
+		insertVariable n t
 
-insertParam :: String -> Production
-insertParam name = wrap $ insertVariable name `liftM` peekType
+makeParam :: Production
+makeParam = wrap $ do
+		n <- getName
+		t <- peekType
+		insertVariable n t
 
-insertFunction :: String -> Production
-insertFunction name = wrap $ do
+makeFunction :: Production
+makeFunction = wrap $ do
+			n <- getName
 			(t:ts) <- flushTypes
-			f <- return $ FUNCTION_t (reverse ts) t
-			insertNamespace $ Space name f empty empty
-			descendDisplay name
+			let f = FUNCTION_t (reverse ts) t
+			insertNamespace $ Space n f empty empty
+			descendDisplay n

@@ -2,7 +2,8 @@
  -}
 
 module Match ( match, matchSynch,
-		matchProgName, matchLowerBound, matchUpperBound
+		matchProgName, matchLowerBound, matchUpperBound,
+		matchIdent, matchName,
 	) where
 
 {- We need to know about Symbols -}
@@ -27,13 +28,22 @@ matchWithEffects m f s (t:ts)	| sym t == s	= m t >> return ts
 match :: Symbol -> Production
 match = matchWithEffects return return
 
+matchVar :: (String -> Compute a) -> Production
+matchVar f = matchWithEffects f' return VAR
+	where
+		f' (Token _ (ID n)) = f n
+
 {- When we match the program name, we want to replace the
  - label in the top scope with the name in the token.
  -}
 matchProgName :: Production
-matchProgName = matchWithEffects f return VAR
-	where
-		f (Token _ (ID n)) = modifyDisplay (\(s,t) -> (s { label = n }, t))
+matchProgName = matchVar $ \n -> modifyDisplay (\(s,t) -> (s { label = n }, t))
+
+matchIdent :: Production
+matchIdent = matchVar $ flip insertVariable NULL_t
+
+matchName :: Production
+matchName = matchVar putName
 
 matchLowerBound :: Production
 matchLowerBound = matchWithEffects f return (INT "_")

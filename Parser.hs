@@ -28,7 +28,7 @@ end = Token NoLine EOF
 --	mapM putStrLn (report results)
 
 parse input = let StateT parser = program $ scan input ++ [end]
-		  init = Context (Space "GLOBAL" NULL_t empty empty, Top) []
+		  init = Context (Space "GLOBAL" NULL_t empty empty, Top) [] ""
 		in runWriter $ parser init
 
 -- report :: State -> [String]

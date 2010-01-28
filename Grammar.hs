@@ -7,7 +7,7 @@ module Grammar ( program ) where
 
 import Symbol ( Symbol (..) )
 import Defs ( sym )
-import Production ( Production, wrap, epsilon, pushType, makeArray )
+import Production
 import Match
 import Error ( syntaxErr, resolveErr )
 import Test
@@ -66,7 +66,6 @@ program'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
  -}
 program''' :: Production
 program''' ts   = compound_statement ts
--- 	     =>>= tellName
 	      >>= match DOT
 	      >>= match EOF
 	      >>= resolveErr follow
@@ -78,7 +77,7 @@ program''' ts   = compound_statement ts
  - 2.1.1.1.1.1	identifier_list → id identifier_list'
  -}
 identifier_list :: Production
-identifier_list ts   =   match VAR ts
+identifier_list ts   = matchIdent ts
 		   >>= identifier_list'
 	where
 		first = [VAR]
@@ -103,9 +102,10 @@ identifier_list' (t:ts) | sym t == DELIM ","   = identifier_list ts
  -}
 declarations :: Production
 declarations ts	= match (RES "var") ts
-	      >>= match VAR
+	      >>= matchName
 	      >>= match (DELIM ":")
 	      >>= type_		-- Since type is a Haskell keyword
+	      >>= makeDecl
 	      >>= matchSynch (DELIM ";")
 	      >>= declarations'
 	where
@@ -229,15 +229,10 @@ subprogram_declaration'' (t:ts) | sym t == RES "function"   = subprogram_declara
  - 8.1.1.1.1.1	subprogram_head → function id subprogram_head'
  -}
 subprogram_head :: Production
-subprogram_head ts	=   do
-				(t:ts') <- match (RES "function") ts
-				ts'' <- match VAR (t:ts')
-
-				ID fun <- return $ sym t
--- 				pushScope fun
--- 				tellName
-
-				subprogram_head' ts''
+subprogram_head ts   = match (RES "function") ts
+		   >>= matchName
+		   >>= subprogram_head' ts''
+		   >>= makeFunction
 	where
 		first = [RES "function"]
 		follow = [RES "var", RES "function", RES "begin"]

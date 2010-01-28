@@ -5,6 +5,7 @@
 module Compute ( Compute, Context (Context),
 		getTypes, modifyTypes, modifyTypes_, putTypes,
 		getDisplay, modifyDisplay, modifyDisplay_, putDisplay,
+		getName, modifyName, modifyName_, putName,
 		tellLeft, tellRight
 		)
 	where
@@ -27,7 +28,8 @@ import Display (Display, Namespace)
  -}
 data Context =	Context {
 			display :: Display,
-			types :: [Type]
+			types :: [Type],
+			name :: String
 		}
 	deriving (Show)
 
@@ -75,6 +77,22 @@ modifyTypes_ f = modifyTypes f >> return ()
 
 putTypes :: [Type] -> Compute ()
 putTypes = modifyTypes_ . const
+
+getName :: Compute String
+getName = name `liftM` get
+
+modifyName :: (String -> String) -> Compute String
+modifyName f = do
+		context <- get
+		let n = name context
+		put context { name = f n }
+		return n
+
+modifyName_ :: (String -> String) -> Compute ()
+modifyName_ f = modifyName f >> return ()
+
+putName :: String -> Compute ()
+putName = modifyName_ . const
 
 {- Writer methods -}
 tellLeft :: String -> Compute ()
