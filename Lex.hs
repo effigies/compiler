@@ -10,7 +10,7 @@ import Defs (Token (Token), sym, Line (Line, NoLine) )
 import Token (tokenize)
 import PreProcess (fixup)
 
-import Test (samplel)
+import Test (samplel, errl)
 
 import Symbol (	Symbol (REF), isLexErr, isID )
 

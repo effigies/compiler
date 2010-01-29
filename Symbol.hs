@@ -6,7 +6,7 @@ module Symbol ( Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, VAR,
 		ID, REF, RES, BIGREAL, REAL, INT, LEXERR, DOT, EOF, NUM, SIGN,
 		NONSENSE, SYNTAXERR),
 		LexErrType( UNREC, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP,
-		LONGID),
+		LONGID, LEXWILD),
 		isID, isLexErr, isSyntaxErr
 		)
 	where
@@ -63,6 +63,7 @@ instance Show Symbol where
 	show VAR		= "an identifier"
 	show SIGN		= "a sign ('+', '-')"
 	show (LEXERR t s)	= "Lexical Error (" ++ show t ++ "): " ++ show s
+	show (SYNTAXERR v s)	= "Syntax Error: Received " ++ show s ++ "; expected " ++ show v
 	show (NONSENSE s)	= "'" ++ s ++ "'"
 	show NULL		= "NULL (YOU SHOULDN'T EVER SEE THIS)"
 
@@ -132,6 +133,7 @@ data LexErrType	= UNREC
 		| LONGFRAC
 		| LONGEXP
 		| LONGID
+		| LEXWILD
 
 {- The above are fine to type. Less fun to read. -}
 instance Show LexErrType where
@@ -141,6 +143,17 @@ instance Show LexErrType where
 	show LONGFRAC	= "Extra Long Fractional Part"
 	show LONGEXP	= "Extra Long Exponent"
 	show LONGID	= "Extra Long Identifier"
+
+instance Eq LexErrType where
+	UNREC		== UNREC	= True
+	LONGINT		== LONGINT	= True
+	LONGWHOLE	== LONGWHOLE	= True
+	LONGFRAC	== LONGFRAC	= True
+	LONGEXP		== LONGEXP	= True
+	LONGID		== LONGID	= True
+	LEXWILD		== _		= True
+	_		== LEXWILD	= True
+	_		== _		= False
 
 isID :: Symbol -> Bool
 isID (ID _)	= True

@@ -22,7 +22,18 @@ data Ord a => Space a b = Space {
 			local	:: Map a b,
 			subs	:: Map a (Space a b)
 		}
-	deriving (Show, Eq)
+	deriving Eq
+	
+instance (Ord a, Show a, Show b) => Show (Space a b) where
+	show (Space la me lo su) = unlines final
+		where
+			final = (showBase:showLocals) ++ map ('\t':) (lines showSubs)
+			showBase = (show la) ++ "::" ++ (show me)
+			showLocals = map showPairs $ toList lo 
+			showPairs (l,m) = "\t" ++ show l ++ "::" ++ show m
+			join _ [] = ""
+			join x (y:ys) = x ++ y ++ join x ys
+			showSubs = concatMap show $ elems su
 
 {- insertLocal is essentially an insert but cuddled into our
  - structure

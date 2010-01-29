@@ -7,7 +7,7 @@ module Match ( match, matchSynch,
 	) where
 
 {- We need to know about Symbols -}
-import Symbol ( Symbol ( SYNTAXERR, VAR, ID, INT ) )
+import Symbol
 import Defs ( Token (Token), sym )
 import Compute
 import Production
@@ -21,7 +21,8 @@ import Type
  - On a failure, it registers a syntax error.
  -}
 matchWithEffects :: (Token -> Compute a) -> Production -> Symbol -> Production
-matchWithEffects m f s (t:ts)	| sym t == s	= m t >> return ts
+matchWithEffects m f s (t:ts)	| sym t == LEXERR LEXWILD s = reportErr t >> m t >> return ts
+				| sym t == s	= m t >> return ts
 				| otherwise	= syntaxErr [s] (t:ts) >>= f
 
 {- Basic match. We eschew side effects, here. -}
@@ -32,6 +33,7 @@ matchVar :: (String -> Compute a) -> Production
 matchVar f = matchWithEffects f' return VAR
 	where
 		f' (Token _ (ID n)) = f n
+		f' (Token _ (LEXERR LONGID (ID n))) = f n
 
 {- When we match the program name, we want to replace the
  - label in the top scope with the name in the token.
@@ -43,7 +45,7 @@ matchIdent :: Production
 matchIdent = matchVar $ flip insertVariable NULL_t
 
 matchName :: Production
-matchName = matchVar putName
+matchName = matchVar pushName
 
 matchLowerBound :: Production
 matchLowerBound = matchWithEffects f return (INT "_")

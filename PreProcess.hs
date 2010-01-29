@@ -8,7 +8,7 @@
 module PreProcess (fixup) where
 
 import Symbol (	Symbol (..),
-		LexErrType (LONGINT, LONGWHOLE, LONGFRAC, LONGEXP)
+		LexErrType (LONGID, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP)
 	)
 
 import Defs ( Token (Token), sym )
@@ -27,7 +27,12 @@ fixup t = case (sym t) of
 	INT i		-> [t { sym = intCheck	i }]
 	REAL r		-> [t { sym = realCheck	r }]
 	BIGREAL b	-> [t { sym = bigRealCheck	b }]
+	ID i		-> [t { sym = idCheck i }]
 	_		-> [t]
+
+idCheck :: String -> Symbol
+idCheck ident	| length ident <= maxIDLen = ID ident
+		| otherwise		= LEXERR LONGID (ID ident)
 
 intCheck :: String -> Symbol
 intCheck int	| length int <= maxIntLen	= INT int

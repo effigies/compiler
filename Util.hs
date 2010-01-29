@@ -7,6 +7,7 @@ module Util (join, contains)
 
 join :: String -> [String] -> String
 join _ [] = ""
+join _ [s] = s
 join c (s:ss) = s ++ c ++ join c ss
 
 contains :: Eq a => [a] -> a -> Bool

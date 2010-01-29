@@ -7,9 +7,10 @@
 module Error ( syntaxErr, resolveErr ) where
 
 {- We need to know about Symbols -}
-import Symbol ( Symbol ( SYNTAXERR, EOF ) )
+import Symbol ( Symbol ( LEXERR, SYNTAXERR, EOF ), isSyntaxErr )
 import Defs ( Token ( Token, sym ) )
-import Production ( Production, epsilon )
+import Production ( Production, epsilon, reportErr )
+import Compute
 
 -- syntaxErr
 -- Simply note that the current symbol is a syntax error, store a list of valid
@@ -24,7 +25,9 @@ syntaxErr val (Token l s : ts) = return $ Token l (SYNTAXERR val s) : ts
 -- token
 resolveErr :: [Symbol] -> Production
 resolveErr _ [] = epsilon []
-resolveErr valid (t:ts) = resolveErr' valid ts -- Write error in WriterT
+resolveErr valid (t:ts) | isSyntaxErr $ sym t = reportErr t
+				      >> resolveErr' valid ts
+			| otherwise	= epsilon (t:ts)
 
 resolveErr' :: [Symbol] -> Production
 resolveErr' valid (t:ts) | inSynch (sym t) valid	= return ts

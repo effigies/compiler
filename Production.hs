@@ -4,24 +4,27 @@
 
 module Production ( Production, epsilon, wrap,
 			pushType, popType, peekType, flushTypes,
-			makeArray, insertVariable, makeDecl, makeParam,
-			makeFunction
+			pushName, popName, peekName, flushNames,
+			makeArray, insertVariable, makeDecl,
+			makeFunction, ascendDisplay,
+			reportErr
 		)
 	where
 
 import Control.Monad (liftM)
+import Control.Monad.State (get)
 
 import Compute ( Compute, Context (Context),
 			getTypes, modifyTypes, putTypes,
 			getDisplay, modifyDisplay, putDisplay,
-			getName, modifyName, putName,
+			getNames, modifyNames, putNames,
 			tellLeft, tellRight)
 import Space (Space (Space), Cxt (Top), Spacer, ascend, descend, insertSubr,
 		insertLocalr)
 import Type ( Type (ARRAY_t, NULL_t, INT_t, REAL_t, FUNCTION_t), baseType )
 import Display (Display, Namespace)
 import Defs ( Token )
-import Data.Map (empty)
+import Data.Map (empty, fromList)
 
 import Control.Monad.Writer ( runWriter )
 import Control.Monad.State ( runStateT )
@@ -45,18 +48,39 @@ wrap :: Monad m => m a -> b -> m b
 wrap f n = f >> return n
 
 {- Treat our [Type] as a stack -}
+headType [] = NULL_t
+headType ts = head ts
+
+tail' [] = []
+tail' ts = tail ts
+
 peekType :: Compute Type
-peekType = head `liftM` getTypes
+peekType = headType `liftM` getTypes
 
 pushType :: Type -> Compute [Type]
 pushType = modifyTypes . (:) 
 
 popType :: Compute Type
-popType = head `liftM` modifyTypes tail
+popType = headType `liftM` modifyTypes tail'
+
+headName [] = ""
+headName ts = head ts
+
+peekName :: Compute String
+peekName = headName `liftM` getNames
+
+pushName :: String -> Compute [String]
+pushName = modifyNames . (:) 
+
+popName :: Compute String
+popName = headName `liftM` modifyNames tail'
 
 {- Clear the type stack, returning its contents -}
 flushTypes :: Compute [Type]
 flushTypes = modifyTypes $ const []
+
+flushNames :: Compute [String]
+flushNames = modifyNames $ const []
 
 makeArray :: Production
 makeArray = wrap $ modifyTypes (\(b:a:ts) -> a { baseType = b } : ts)
@@ -84,20 +108,19 @@ insertVariable k v = modifyDisplay $ insertLocalr k v
 
 makeDecl :: Production
 makeDecl = wrap $ do
-		n <- getName
+		n <- popName
 		t <- popType
-		insertVariable n t
-
-makeParam :: Production
-makeParam = wrap $ do
-		n <- getName
-		t <- peekType
 		insertVariable n t
 
 makeFunction :: Production
 makeFunction = wrap $ do
-			n <- getName
+			(n:ns) <- reverse `liftM` flushNames
 			(t:ts) <- flushTypes
-			let f = FUNCTION_t (reverse ts) t
-			insertNamespace $ Space n f empty empty
+			let ts' = reverse ts
+			let f = FUNCTION_t ts' t
+			let locals = fromList $ zip ns ts'
+			insertNamespace $ Space n f locals empty
 			descendDisplay n
+
+reportErr :: Token -> Compute ()
+reportErr t = tellLeft . show $ t

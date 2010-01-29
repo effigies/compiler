@@ -12,6 +12,9 @@ import Match
 import Error ( syntaxErr, resolveErr )
 import Test
 
+import Control.Monad (liftM)
+import Control.Monad.State (get)
+
 import Type ( Type (NULL_t, INT_t, REAL_t, ARRAY_t, FUNCTION_t) )
 
 {- Remember that we have a state/writer monad Compute, and
@@ -191,6 +194,7 @@ subprogram_declarations' (t:ts) | sym t == RES "function"   = subprogram_declara
 subprogram_declaration :: Production
 subprogram_declaration ts   = subprogram_head ts
 			  >>= subprogram_declaration'
+			  >>= ascendDisplay
 	where
 		first = [RES "function"]
 		follow = [DELIM ";"]
@@ -231,7 +235,7 @@ subprogram_declaration'' (t:ts) | sym t == RES "function"   = subprogram_declara
 subprogram_head :: Production
 subprogram_head ts   = match (RES "function") ts
 		   >>= matchName
-		   >>= subprogram_head' ts''
+		   >>= subprogram_head'
 		   >>= makeFunction
 	where
 		first = [RES "function"]
@@ -266,7 +270,7 @@ subprogram_head'' ts	=   match (DELIM ":") ts
  - 10.1.1.1.1.1	parameter_list → id : type parameter_list'
  -}
 parameter_list :: Production
-parameter_list ts	=   match VAR ts
+parameter_list ts	=   matchName ts
 			>>= match (DELIM ":")
 			>>= type_
 			>>= parameter_list'
