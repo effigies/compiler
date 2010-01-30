@@ -7,7 +7,7 @@
 module Error ( syntaxErr, resolveErr ) where
 
 {- We need to know about Symbols -}
-import Symbol ( Symbol ( LEXERR, SYNTAXERR, EOF ), isSyntaxErr )
+import Symbol ( Symbol ( LEXERR, SYNTAXERR, EOF ), isSyntaxErr, isLexErr )
 import Defs ( Token ( Token, sym ) )
 import Production ( Production, epsilon, reportErr )
 import Compute
@@ -30,8 +30,10 @@ resolveErr valid (t:ts) | isSyntaxErr $ sym t = reportErr t
 			| otherwise	= epsilon (t:ts)
 
 resolveErr' :: [Symbol] -> Production
-resolveErr' valid (t:ts) | inSynch (sym t) valid	= return ts
-			 | otherwise			= resolveErr' valid ts
+resolveErr' valid (t:ts) | inSynch (sym t) valid = return ts
+			 | isLexErr (sym t)	 = reportErr t
+			 			>> resolveErr' valid ts
+			 | otherwise		 = resolveErr' valid ts
 
 -- inSynch
 -- Check to see if we're in the synch set

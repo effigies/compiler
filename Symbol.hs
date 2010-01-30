@@ -11,6 +11,8 @@ module Symbol ( Symbol( WHITESPACE, ASSIGNOP, DELIM, RELOP, MULOP, ADDOP, VAR,
 		)
 	where
 
+import Util (joinWith)
+
 -- Symbol is a (TOKEN, LEXEME) pair
 -- The lexical analyzer will take a source string
 -- and parse it into a list of these symbols
@@ -51,8 +53,7 @@ instance Show Symbol where
 	show (MULOP s)		= "'" ++ s ++ "'"
 	show (ADDOP "_")	= "an addition operator ('+', '-', 'or')"
 	show (ADDOP s)		= "'" ++ s ++ "'"
-	show (ID s)		= show s -- show ns ++ "." ++ s ++ "::" ++ show t
--- 	show (REF i)		= "symbol table entry " ++ show i
+	show (ID s)		= show s
 	show (RES s)		= "'" ++ s ++ "'"
 	show (BIGREAL s)	= "'" ++ s ++ "'"
 	show (REAL s)		= "'" ++ s ++ "'"
@@ -63,7 +64,8 @@ instance Show Symbol where
 	show VAR		= "an identifier"
 	show SIGN		= "a sign ('+', '-')"
 	show (LEXERR t s)	= "Lexical Error (" ++ show t ++ "): " ++ show s
-	show (SYNTAXERR v s)	= "Syntax Error: Received " ++ show s ++ "; expected " ++ show v
+	show (SYNTAXERR v s)	= "Syntax Error: Received " ++ show s ++
+				"; expected " ++ joinWith ", " " or " (map show v)
 	show (NONSENSE s)	= "'" ++ s ++ "'"
 	show NULL		= "NULL (YOU SHOULDN'T EVER SEE THIS)"
 
@@ -75,7 +77,6 @@ instance Eq Symbol where
 	ADDOP "+"	== SIGN		= True
 	ADDOP "-"	== SIGN		= True
 	ID  _		== VAR		= True
--- 	REF _		== VAR		= True
 	BIGREAL _	== NUM		= True
 	REAL _		== NUM		= True
 	INT _		== NUM		= True
@@ -90,7 +91,6 @@ instance Eq Symbol where
 	SIGN		== ADDOP "+"	= True
 	SIGN		== ADDOP "-"	= True
 	VAR		== ID _		= True
--- 	VAR		== REF _	= True
 	NUM		== BIGREAL _	= True
 	NUM		== REAL _	= True
 	NUM		== INT _	= True
@@ -112,7 +112,6 @@ instance Eq Symbol where
 	MULOP a		== MULOP b	= a == b
 	ADDOP a		== ADDOP b	= a == b
 	RES a		== RES b	= a == b
--- 	REF a		== REF b	= a == b
 	BIGREAL a	== BIGREAL b	= a == b
 	REAL a		== REAL b	= a == b
 	INT a		== INT b	= a == b
@@ -143,6 +142,7 @@ instance Show LexErrType where
 	show LONGFRAC	= "Extra Long Fractional Part"
 	show LONGEXP	= "Extra Long Exponent"
 	show LONGID	= "Extra Long Identifier"
+	show LEXWILD	= "SOME LEXICAL ERROR (YOU SHOULDN'T EVER SEE THIS)"
 
 instance Eq LexErrType where
 	UNREC		== UNREC	= True

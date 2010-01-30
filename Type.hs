@@ -6,6 +6,7 @@ module Type ( Type (INT_t, REAL_t, ARRAY_t, FUNCTION_t, NULL_t),
 		sizeof, lBound, uBound, baseType )
 	where
 
+import Symbol ( Symbol (..) )
 import Util (join)
 
 data Type = INT_t

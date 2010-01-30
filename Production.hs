@@ -12,7 +12,8 @@ module Production ( Production, epsilon, wrap,
 	where
 
 import Control.Monad (liftM)
-import Control.Monad.State (get)
+import Control.Monad.State (get, runStateT)
+import Control.Monad.Writer ( runWriter )
 
 import Compute ( Compute, Context (Context),
 			getTypes, modifyTypes, putTypes,
@@ -20,14 +21,13 @@ import Compute ( Compute, Context (Context),
 			getNames, modifyNames, putNames,
 			tellLeft, tellRight)
 import Space (Space (Space), Cxt (Top), Spacer, ascend, descend, insertSubr,
-		insertLocalr)
+		insertLocalr, lookupInScope)
 import Type ( Type (ARRAY_t, NULL_t, INT_t, REAL_t, FUNCTION_t), baseType )
 import Display (Display, Namespace)
+import Symbol ( Symbol (..) )
 import Defs ( Token )
 import Data.Map (empty, fromList)
-
-import Control.Monad.Writer ( runWriter )
-import Control.Monad.State ( runStateT )
+import Util ( tail' )
 
 {-
  - Every production will take a list of tokens, act upon it, potentially
@@ -50,9 +50,6 @@ wrap f n = f >> return n
 {- Treat our [Type] as a stack -}
 headType [] = NULL_t
 headType ts = head ts
-
-tail' [] = []
-tail' ts = tail ts
 
 peekType :: Compute Type
 peekType = headType `liftM` getTypes
@@ -104,7 +101,7 @@ insertNamespace :: Namespace -> Compute Display
 insertNamespace = modifyDisplay . insertSubr
 
 insertVariable :: String -> Type -> Compute Display
-insertVariable k v = modifyDisplay $ insertLocalr k v
+insertVariable k = modifyDisplay . insertLocalr k
 
 makeDecl :: Production
 makeDecl = wrap $ do
@@ -123,4 +120,23 @@ makeFunction = wrap $ do
 			descendDisplay n
 
 reportErr :: Token -> Compute ()
-reportErr t = tellLeft . show $ t
+reportErr = tellLeft . show
+
+typeof :: Symbol -> Compute Type
+typeof (RELOP _)			= return $ FUNCTION_t [REAL_t, REAL_t] INT_t
+typeof (MULOP m)	| m == "*"
+		       || m == "/"	= return $ FUNCTION_t [REAL_t, REAL_t] REAL_t
+			| otherwise	= return $ FUNCTION_t [INT_t, INT_t] INT_t -- div/mod/and
+typeof (ADDOP a)	| a == "or"	= return $ FUNCTION_t [INT_t, INT_t] INT_t
+			| otherwise	= return $ FUNCTION_t [REAL_t, REAL_t] REAL_t -- +/-
+typeof (ID n)				= do
+						mt <- lookupInScope n `liftM` getDisplay
+						case mt of
+							Just t	-> return t
+							Nothing	-> return NULL_t
+typeof (BIGREAL _)			= return REAL_t
+typeof (REAL _)				= return REAL_t
+typeof (INT _)				= return INT_t
+typeof (LEXERR _ s)			= typeof s
+typeof _				= return NULL_t
+

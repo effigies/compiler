@@ -28,10 +28,10 @@ detape (Tape l h r) = reverse l ++ h : r
 
 -- Motions on a tape
 mover, movel :: (Show a) => Tape a -> Tape a
-mover (Tape    ls  h    [] ) = error . show . reverse $ (h:ls)
+mover (Tape    ls  h    [] ) = error . show $ reverse (h:ls)
 mover (Tape    ls  h (r:rs)) = Tape (h:ls) r    rs
 
-movel (Tape    []  h    rs ) = error (show (h:rs))
+movel (Tape    []  h    rs ) = error $ show (h:rs)
 movel (Tape (l:ls) h    rs ) = Tape    ls  l (h:rs)
 
 -- Cut the tape

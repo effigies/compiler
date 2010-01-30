@@ -1,5 +1,8 @@
 {- Compute.hs
- - Define the mode of computation for our grammar productions
+ - 
+ - Here we define the monad that surrounds our computations, and primitive
+ - methods for accessing its state.
+ - 
  -}
 
 module Compute ( Compute, Context (Context),
@@ -25,7 +28,9 @@ import Display (Display, Namespace)
  - zippered tree, where the nodes represent scopes, and the leaves represent
  - varaibles. It thus also incorporates the information which would
  - traditionally be represented in a symbol table.
- - I also maintain a stack of types.
+ - I also maintain a stack of types, and a stack of names. Typically, these
+ - will only hold a single value, but should grow (at identical rates) while
+ - function parameters are parsed.
  -}
 data Context =	Context {
 			display :: Display,
