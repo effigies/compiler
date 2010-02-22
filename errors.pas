@@ -5,8 +5,6 @@ var z: real;
 var a: array[0 .. 3] of integer;
 var thisidisreallytoolong: integer;
 
-><
-
 function gcd(a: integer; b: integer): integer;
 	begin
 		if b = 0 
@@ -46,4 +44,8 @@ begin
 	a[1] := 2718281828459e-12;
 	a[2] := .314159265358979e1;
 	a[3] := 1.23e456
-end.
+end
+
+><
+
+.

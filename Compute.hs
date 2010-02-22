@@ -6,11 +6,10 @@
  -}
 
 module Compute ( Compute, Context (Context),
-		getTypes, modifyTypes, modifyTypes_, putTypes,
-		getDisplay, modifyDisplay, modifyDisplay_, putDisplay,
-		getNames, modifyNames, modifyNames_, putNames,
+		getTypes, modifyTypes, putTypes,
+		getDisplay, modifyDisplay,
+		getNames, modifyNames,
 		tellLeft, tellRight,
-		display, types, names
 		)
 	where
 
@@ -19,7 +18,8 @@ import Control.Monad.State (StateT, put, get)
 import Control.Monad.Writer (Writer, tell)
 
 import Type ( Type )
-import Display (Display, Namespace)
+import Display (Display)
+
 
 {- 
  - For aspects of compiler that can't be resolved purely by PDA, we need some
@@ -33,9 +33,9 @@ import Display (Display, Namespace)
  - function parameters are parsed.
  -}
 data Context =	Context {
-			display :: Display,
-			types :: [Type],
-			names :: [String]
+			display	:: Display,
+			types	:: [Type],
+			names	:: [String]
 		}
 	deriving (Show)
 
@@ -61,13 +61,6 @@ modifyDisplay f = do
 		let d = display context
 		put context { display = f d }
 		return d
-
-modifyDisplay_ :: (Display -> Display) -> Compute ()
-modifyDisplay_ f = modifyDisplay f >> return ()
-
-putDisplay :: Display -> Compute ()
-putDisplay = modifyDisplay_ . const
-
 
 getTypes :: Compute [Type]
 getTypes = types `liftM` get
@@ -96,11 +89,6 @@ modifyNames f = do
 		put context { names = f n }
 		return n
 
-modifyNames_ :: ([String] -> [String]) -> Compute ()
-modifyNames_ f = modifyNames f >> return ()
-
-putNames :: [String] -> Compute ()
-putNames = modifyNames_ . const
 
 {- Writer methods -}
 tellLeft :: String -> Compute ()

@@ -2,9 +2,7 @@
  - Define generic, compiler-related data structures
  -}
 
-module Defs ( Line( Line, NoLine ),
-		Token( Token ), line, sym,
-		)
+module Defs ( Line( Line, NoLine ), Token( Token ), sym )
 	where
 
 import Symbol (Symbol)

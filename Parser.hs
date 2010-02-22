@@ -11,7 +11,7 @@ import Type ( Type (NULL_t) )
 import Defs ( Token (Token), Line (NoLine) )
 import Lex ( scan )
 import Grammar ( program )
-import Compute
+import Compute ( Context (Context) )
 import Test
 
 import Space (Space (Space), Cxt (Top))
@@ -25,7 +25,8 @@ end = Token NoLine EOF
 main = do
 	input <- getContents
 	(errors, sizes) <- return . snd . parse $ lines input
-	mapM putStrLn errors
+	mapM_ putStrLn errors
+	mapM_ putStrLn sizes
 
 parse :: [String] -> (([Token],Context),([String],[String]))
 parse input = let StateT parser = program $ scan input ++ [end]

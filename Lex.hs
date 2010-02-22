@@ -10,12 +10,10 @@ import Defs (Token (Token), sym, Line (Line, NoLine) )
 import Token (tokenize)
 import PreProcess (fixup)
 
-import Test (samplel, errl)
-
 import Symbol (	Symbol (REF), isLexErr, isID )
 
 import IO (openFile, Handle, hPutStrLn, hClose, IOMode (WriteMode)) 
-import Monad (mapM, when)
+import Monad (when)
 
 main :: IO ()
 main = do

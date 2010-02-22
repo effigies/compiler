@@ -7,11 +7,11 @@
 
 module PreProcess (fixup) where
 
-import Symbol (	Symbol (..),
+import Symbol (	Symbol (WHITESPACE, INT, REAL, BIGREAL, ID, LEXERR),
 		LexErrType (LONGID, LONGINT, LONGWHOLE, LONGFRAC, LONGEXP)
 	)
 
-import Defs ( Token (Token), sym )
+import Defs ( Token, sym )
 
 -- Constraints
 maxIDLen, maxIntLen, maxWholeLen, maxFracLen, maxExpLen	:: Int

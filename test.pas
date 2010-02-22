@@ -3,6 +3,7 @@ var x: integer;
 var y: integer;
 var z: real;
 var a: array[0 .. 1] of integer;
+var i: integer;
 
 function gcd(a: integer; b: integer): integer;
 	begin

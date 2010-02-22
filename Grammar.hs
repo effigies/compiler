@@ -5,17 +5,21 @@
 
 module Grammar ( program ) where
 
-import Symbol ( Symbol (..) )
+import Symbol ( Symbol (RES, DELIM, NUM, VAR, DOT, EOF, SIGN,
+		RELOP, MULOP, ADDOP, ASSIGNOP) )
 import Defs ( sym )
-import Production
-import Match
-import Error ( syntaxErr, resolveErr )
-import Test
-
-import Control.Monad (liftM)
-import Control.Monad.State (get)
-
+import Production ( Production, wrap, epsilon,
+			ascendDisplay, dropTypes, pushType,
+			makeDecl, makeFunction, makeArray, dereferenceArray)
+import Match ( match, matchSynch,
+		matchName, matchIdent, matchProgName, matchScopedVar,
+		matchLowerBound, matchUpperBound )
+import Error ( syntaxErr, resolveErr, checkLexErr, checkScopeErr )
 import Type ( Type (NULL_t, INT_t, REAL_t, ARRAY_t, FUNCTION_t) )
+import TypeCheck ( typeof, reduceRelop, reduceAddop, reduceMulop,
+			assertArray, assertFunction,
+			assertFirstClass, assertTopType,
+			validateAssignment, validateFunction)
 
 {- Remember that we have a state/writer monad Compute, and
  - Production = [Token] -> Compute [Token] -}
@@ -318,10 +322,14 @@ compound_statement' (t:ts) | sym t == RES "end"	=   epsilon ts
 
 {-
  - 13.1.1.1.1.1	statement_list → statement statement_list'
+ -
+ - Each statement is followed by a semicolon or end, so the types don't
+ - roll over.
  -}
 statement_list :: Production
-statement_list ts	=   statement ts
-			>>= statement_list'
+statement_list ts	= statement ts
+		      >>= dropTypes
+		      >>= statement_list'
 	where
 		first = [VAR, RES "begin", RES "while", RES "if"]
 		follow = [RES "end"]
@@ -347,19 +355,25 @@ statement_list' (t:ts) | sym t == DELIM ";"	=   statement_list ts
  - 14.3.1.1.1.1	statement → if expression then statement statement'
  -}
 statement :: Production
-statement (t:ts) | sym t == RES "begin"	=  compound_statement (t:ts)
-		 | sym t == RES "while"	=   expression ts
-					>>= match (RES "do")
-					>>= statement
-		| sym t == RES "if"	=   expression ts
-					>>= match (RES "then")
-					>>= statement
-					>>= statement'
-		| sym t == VAR		=   variable (t:ts)
-					>>= match ASSIGNOP
-					>>= expression
-		| otherwise		=   syntaxErr first (t:ts)
-					>>= resolveErr follow
+statement (t:ts) | sym t == RES "begin"	= compound_statement (t:ts)
+		 | sym t == RES "while"	= expression ts
+				      >>= assertTopType INT_t t
+				      >>= dropTypes
+				      >>= match (RES "do")
+				      >>= statement
+		| sym t == RES "if"	= expression ts
+				      >>= assertTopType INT_t t
+				      >>= dropTypes
+				      >>= match (RES "then")
+				      >>= statement
+				      >>= statement'
+		| sym t == VAR		= variable (t:ts)
+				      >>= match ASSIGNOP
+				      >>= expression
+				      >>= validateAssignment t
+		| otherwise		= dropTypes (t:ts)
+				      >>= syntaxErr first
+				      >>= resolveErr follow
 	where
 		first = [RES "begin", RES "while", RES "if", VAR]
 		follow = [RES "end", RES "else", DELIM ";"]
@@ -369,10 +383,12 @@ statement (t:ts) | sym t == RES "begin"	=  compound_statement (t:ts)
  - 14.3.1.1.2.2	statement' → ε
  -}
 statement' :: Production
-statement' (t:ts) | sym t == RES "else"	=   statement ts
-		  | sym t `elem` follow	=   epsilon (t:ts)
-		  | otherwise		=   syntaxErr valid (t:ts)
-					>>= resolveErr follow
+statement' (t:ts) | sym t == RES "else"	= dropTypes ts
+				      >>= statement
+		  | sym t `elem` follow	= epsilon (t:ts)
+		  | otherwise		= dropTypes (t:ts)
+		  		      >>= syntaxErr valid
+				      >>= resolveErr follow
 	where
 		first = [RES "else"]
 		follow = [DELIM ";", RES "end", RES "else"]
@@ -382,8 +398,8 @@ statement' (t:ts) | sym t == RES "else"	=   statement ts
  - 15.1.1.1.1.1	variable → id variable'
  -}
 variable :: Production
-variable ts	=   match VAR ts
-		>>= variable'
+variable ts = matchScopedVar ts
+	  >>= variable'
 	where
 		first = [VAR]
 		follow = [ASSIGNOP]
@@ -393,12 +409,16 @@ variable ts	=   match VAR ts
  - 15.1.1.1.2.1	variable' → ε
  -}
 variable' :: Production
-variable' (t:ts) | sym t == DELIM "["	=   expression ts
-					>>= match (DELIM "]")
-		 | sym t `elem` follow	=   epsilon (t:ts)
-		 | otherwise		=   syntaxErr valid (t:ts)
+variable' (t:ts) | sym t == DELIM "["	= assertArray t
+				       >> expression ts
+				      >>= assertTopType INT_t t
+				      >>= match (DELIM "]")
+				      >>= dereferenceArray
+		 | sym t `elem` follow	= epsilon (t:ts)
+-- 		 		      >>= assertPrimitive t
+		 | otherwise		= syntaxErr valid (t:ts)
 -- ASSIGNOP is a pretty silly thing to synch to
---					>>= resolveErr follow
+-- 					>>= resolveErr follow
 	where
 		first = [DELIM "["]
 		follow = [ASSIGNOP]
@@ -408,8 +428,9 @@ variable' (t:ts) | sym t == DELIM "["	=   expression ts
  - 16.1.1.1.1.1	expression_list → expression expression_list'
  -}
 expression_list :: Production
-expression_list ts	=   expression ts
-			>>= expression_list'
+expression_list ts = expression ts
+		 >>= assertFirstClass
+		 >>= expression_list'
 	where
 		first = [NUM, RES "not", DELIM "(", VAR, SIGN]
 		follow = [DELIM ")"]
@@ -419,10 +440,10 @@ expression_list ts	=   expression ts
  - 16.1.2.2.1.1	expression_list' → ε
  -}
 expression_list' :: Production
-expression_list' (t:ts) | sym t == DELIM ","	=   expression_list ts
-			| sym t == DELIM ")"	=   epsilon (t:ts)
-			| otherwise		=   syntaxErr valid (t:ts)
-						>>= resolveErr follow
+expression_list' (t:ts) | sym t == DELIM "," = expression_list ts
+			| sym t == DELIM ")" = epsilon (t:ts)
+			| otherwise	     = syntaxErr valid (t:ts)
+					   >>= resolveErr follow
 	where
 		first = [DELIM ","]
 		follow = [DELIM ")"]
@@ -432,8 +453,8 @@ expression_list' (t:ts) | sym t == DELIM ","	=   expression_list ts
  - 17.1.1.1.1.1	expression → simple_expression expression'
  -}
 expression :: Production
-expression ts	=   simple_expression ts
-		>>= expression'
+expression ts = simple_expression ts
+	    >>= expression'
 	where
 		first = [NUM, RES "not", DELIM "(", VAR, SIGN]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -443,10 +464,11 @@ expression ts	=   simple_expression ts
  - 17.1.1.1.2.2	expression' → ε
  -}
 expression' :: Production
-expression' (t:ts) | sym t == RELOP "_"		=   simple_expression ts
-		   | sym t `elem` follow	=   epsilon (t:ts)
-		   | otherwise			=   syntaxErr valid (t:ts)
-						>>= resolveErr follow
+expression' (t:ts) | sym t == RELOP "_"  = simple_expression ts
+				       >>= reduceRelop t
+		   | sym t `elem` follow = epsilon (t:ts)
+		   | otherwise		 = syntaxErr valid (t:ts)
+				       >>= resolveErr follow
 	where
 		first = [RELOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -474,11 +496,12 @@ simple_expression (t:ts) | sym t == SIGN	=   term ts
  - 18.3.2.2.1.1	simple_expression' → ε
  -}
 simple_expression' :: Production
-simple_expression' (t:ts) | sym t == ADDOP "_"	=   term ts
-						>>= simple_expression'
-			  | sym t `elem` follow	=   epsilon (t:ts)
-			  | otherwise		=   syntaxErr valid (t:ts)
-						>>= resolveErr follow
+simple_expression' (t:ts) | sym t == ADDOP "_"  = term ts
+					      >>= reduceAddop t
+					      >>= simple_expression'
+			  | sym t `elem` follow	= epsilon (t:ts)
+			  | otherwise	        = syntaxErr valid (t:ts)
+					      >>= resolveErr follow
 	where
 		first = [ADDOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
@@ -488,8 +511,8 @@ simple_expression' (t:ts) | sym t == ADDOP "_"	=   term ts
  - 19.1.1.1.1.1	term → factor term'
  -}
 term :: Production
-term ts	=   factor ts
-	>>= term'
+term ts	= factor ts
+      >>= term'
 	where
 		first = [VAR, DELIM "(", RES "not", NUM]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -501,10 +524,12 @@ term ts	=   factor ts
  - 19.2.2.2.1.1	term' → ε
  -}
 term' :: Production
-term' (t:ts)	| sym t == MULOP "_"	=   term ts
-		| sym t `elem` follow	=   epsilon (t:ts)
-		| otherwise		=   syntaxErr valid (t:ts)
-					>>= resolveErr follow
+term' (t:ts) | sym t == MULOP "_"  = factor ts
+				 >>= reduceMulop t
+				 >>= term'
+	     | sym t `elem` follow = epsilon (t:ts)
+	     | otherwise	   = syntaxErr valid (t:ts)
+				 >>= resolveErr follow
 	where
 		first = [MULOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -519,13 +544,17 @@ term' (t:ts)	| sym t == MULOP "_"	=   term ts
  - 20.1.1.1.1.1	factor → id factor'
  -}
 factor :: Production
-factor (t:ts)	| sym t == NUM			=   epsilon ts
-		| sym t == VAR			=   factor' ts
-		| sym t == DELIM "("		=   expression ts
-						>>= match (DELIM ")")
-		| sym t == RES "not"		=   factor ts
-		| otherwise			=   syntaxErr first (t:ts)
-						>>= resolveErr follow
+factor (t:ts)	| sym t == NUM		= checkLexErr t
+				       >> typeof (sym t) >>= pushType
+				       >> epsilon ts
+		| sym t == VAR		= checkLexErr t
+				       >> checkScopeErr t
+				       >> factor' ts
+		| sym t == DELIM "("	= expression ts
+				      >>= match (DELIM ")")
+		| sym t == RES "not"	= factor ts
+		| otherwise		= syntaxErr first (t:ts)
+				      >>= resolveErr follow
 	where
 		first = [NUM, VAR, DELIM "(", RES "not"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -538,13 +567,21 @@ factor (t:ts)	| sym t == NUM			=   epsilon ts
  - 20.1.1.1.2.3	factor' → ε
  -}
 factor' :: Production
-factor' (t:ts) | sym t == DELIM "("	=   expression_list ts
-					>>= match (DELIM ")")
-	  | sym t == DELIM "["		=   expression ts
-					>>= match (DELIM "]")
-	  | sym t `elem` follow		=   epsilon (t:ts)
-	  | otherwise			=   syntaxErr valid (t:ts)
-					>>= resolveErr follow
+factor' (t:ts)	| sym t == DELIM "("	= wrap (assertFunction t) ts
+				      >>= expression_list
+				      >>= match (DELIM ")")
+				      >>= validateFunction t
+
+	  	| sym t == DELIM "["	= assertArray t
+	  			       >> expression ts
+				      >>= assertTopType INT_t t
+				      >>= match (DELIM "]")
+				      >>= dereferenceArray
+				      
+		| sym t `elem` follow	= epsilon (t:ts)
+		
+		| otherwise	     	= syntaxErr valid (t:ts)
+				      >>= resolveErr follow
 	where
 		first = [DELIM "(", DELIM "["]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",

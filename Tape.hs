@@ -4,7 +4,9 @@
  - Consists of a left stack, a right stack, and a focus
  -}
 
-module Tape (Tape(Tape), tapify, tapify', detape, mover, movel, cutl, cutr, right, left, focus, left') where
+module Tape (Tape(Tape), tapify, tapify', detape,
+		mover, movel, cutl, cutr,
+		right, left, focus, left') where
 
 type Stack = []
 data Tape a = Tape { left :: Stack a,
