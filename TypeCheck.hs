@@ -19,7 +19,7 @@ import Type ( Type (INT_t, REAL_t, ARRAY_t, FUNCTION_t, NULL_t), returnType,
 import Defs ( Token, sym )
 import Util ( join )
 
-import Control.Monad ( liftM )
+import Control.Monad ( liftM, when )
 
 typeof :: Symbol -> Compute Type
 typeof (RELOP _)			= return $ FUNCTION_t [REAL_t, REAL_t] INT_t
@@ -118,13 +118,12 @@ validateFunction tok = wrap $ do
 		else do
 			let (FUNCTION_t params ret:stack) = remnants
 			putTypes (ret:stack)
-			if params /= reverse args
-				then tellLeft ("Invalid function call. Function has "
+			when (params /= reverse args) $
+				tellLeft ("Invalid function call. Function has "
 					++ "type " ++ show (head remnants) ++
 					"; argument types were (" ++
 					join "," (map show $ reverse args) ++ ") at " ++
 					show tok)
-				else return ()
 
 reduceRelop :: Token -> Production
 reduceRelop rel = wrap $ do
