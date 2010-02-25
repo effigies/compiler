@@ -7,7 +7,7 @@ module Grammar ( program ) where
 
 import Symbol ( Symbol (RES, DELIM, NUM, VAR, DOT, EOF, SIGN,
 		RELOP, MULOP, ADDOP, ASSIGNOP) )
-import Defs ( sym )
+import Defs ( Token, sym )
 import Production ( Production, wrap, epsilon,
 			ascendDisplay, dropTypes, pushType,
 			makeDecl, makeFunction, makeArray, dereferenceArray)
@@ -112,7 +112,7 @@ declarations ts	= match (RES "var") ts
 	      >>= matchName
 	      >>= match (DELIM ":")
 	      >>= type_		-- Since type is a Haskell keyword
-	      >>= makeDecl
+	      >>= makeDecl (head ts)
 	      >>= matchSynch (DELIM ";")
 	      >>= declarations'
 	where
@@ -240,7 +240,7 @@ subprogram_head :: Production
 subprogram_head ts   = match (RES "function") ts
 		   >>= matchName
 		   >>= subprogram_head'
-		   >>= makeFunction
+		   >>= makeFunction (head ts)
 	where
 		first = [RES "function"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -412,7 +412,7 @@ variable' :: Production
 variable' (t:ts) | sym t == DELIM "["	= assertArray t
 				       >> expression ts
 				      >>= assertTopType INT_t t
-				      >>= match (DELIM "]")
+				      >>= matchSynch (DELIM "]")
 				      >>= dereferenceArray
 		 | sym t `elem` follow	= epsilon (t:ts)
 -- 		 		      >>= assertPrimitive t
@@ -443,7 +443,7 @@ expression_list' :: Production
 expression_list' (t:ts) | sym t == DELIM "," = expression_list ts
 			| sym t == DELIM ")" = epsilon (t:ts)
 			| otherwise	     = syntaxErr valid (t:ts)
-					   >>= resolveErr follow
+-- 					   >>= resolveErr follow
 	where
 		first = [DELIM ","]
 		follow = [DELIM ")"]
@@ -468,7 +468,7 @@ expression' (t:ts) | sym t == RELOP "_"  = simple_expression ts
 				       >>= reduceRelop t
 		   | sym t `elem` follow = epsilon (t:ts)
 		   | otherwise		 = syntaxErr valid (t:ts)
-				       >>= resolveErr follow
+-- 				       >>= resolveErr follow
 	where
 		first = [RELOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -485,7 +485,7 @@ simple_expression (t:ts) | sym t == SIGN	=   term ts
 			 | sym t `elem` first	=   term (t:ts)
 						>>= simple_expression'
 			 | otherwise		=   syntaxErr first (t:ts)
-						>>= resolveErr follow
+-- 						>>= resolveErr follow
 	where
 		first = [VAR, DELIM "(", RES "not", NUM, SIGN]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
@@ -501,7 +501,7 @@ simple_expression' (t:ts) | sym t == ADDOP "_"  = term ts
 					      >>= simple_expression'
 			  | sym t `elem` follow	= epsilon (t:ts)
 			  | otherwise	        = syntaxErr valid (t:ts)
-					      >>= resolveErr follow
+-- 					      >>= resolveErr follow
 	where
 		first = [ADDOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
@@ -529,7 +529,7 @@ term' (t:ts) | sym t == MULOP "_"  = factor ts
 				 >>= term'
 	     | sym t `elem` follow = epsilon (t:ts)
 	     | otherwise	   = syntaxErr valid (t:ts)
-				 >>= resolveErr follow
+-- 				 >>= resolveErr follow
 	where
 		first = [MULOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -549,12 +549,12 @@ factor (t:ts)	| sym t == NUM		= checkLexErr t
 				       >> epsilon ts
 		| sym t == VAR		= checkLexErr t
 				       >> checkScopeErr t
-				       >> factor' ts
+				       >> factor' t ts
 		| sym t == DELIM "("	= expression ts
-				      >>= match (DELIM ")")
+				      >>= matchSynch (DELIM ")")
 		| sym t == RES "not"	= factor ts
 		| otherwise		= syntaxErr first (t:ts)
-				      >>= resolveErr follow
+-- 				      >>= resolveErr follow
 	where
 		first = [NUM, VAR, DELIM "(", RES "not"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -566,22 +566,22 @@ factor (t:ts)	| sym t == NUM		= checkLexErr t
  - 20.1.1.1.2.2	factor' → [ expression ]
  - 20.1.1.1.2.3	factor' → ε
  -}
-factor' :: Production
-factor' (t:ts)	| sym t == DELIM "("	= wrap (assertFunction t) ts
+factor' :: Token -> Production
+factor' tok (t:ts)	| sym t == DELIM "("	= wrap (assertFunction tok) ts
 				      >>= expression_list
-				      >>= match (DELIM ")")
-				      >>= validateFunction t
+				      >>= matchSynch (DELIM ")")
+				      >>= validateFunction tok
 
-	  	| sym t == DELIM "["	= assertArray t
+	  	| sym t == DELIM "["	= assertArray tok
 	  			       >> expression ts
 				      >>= assertTopType INT_t t
-				      >>= match (DELIM "]")
+				      >>= matchSynch (DELIM "]")
 				      >>= dereferenceArray
 				      
 		| sym t `elem` follow	= epsilon (t:ts)
 		
 		| otherwise	     	= syntaxErr valid (t:ts)
-				      >>= resolveErr follow
+-- 				      >>= resolveErr follow
 	where
 		first = [DELIM "(", DELIM "["]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",

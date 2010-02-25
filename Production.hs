@@ -19,10 +19,10 @@ import Compute ( Compute,
 		getDisplay, modifyDisplay,
 		getNames, modifyNames,
 		tellLeft, tellRight)
-import Space (Space (Space), ascend, insertLocalr, insertAndDescend, labels)
+import Space (Space (Space), ascend, insertLocalr, insertAndDescend, labels, checkBoth, lookupInScope)
 import Type ( Type (NULL_t, FUNCTION_t), baseType, sizeof, isArray )
 import Display (Display)
-import Defs ( Token )
+import Defs ( Token (Token), Line (Line) )
 import Data.Map (empty, fromList)
 import Util ( tail', join )
 
@@ -91,28 +91,44 @@ ascendDisplay = wrap $ modifyDisplay ascend
 insertVariable :: String -> Type -> Compute Display
 insertVariable k = modifyDisplay . insertLocalr k
 
-makeDecl :: Production
-makeDecl = wrap $ do
+makeDecl :: Token -> Production
+makeDecl (Token l@(Line num _) _) = wrap $ do
 		n <- popName
 		t <- popType
-		ns <- join "::" `liftM` labels `liftM` getDisplay
-		tellRight $ join "::" [ns,n] ++ " : " ++ show (sizeof t)
-		insertVariable n t
+		d <- getDisplay
+		let ns = join "::" $ labels d
+		let var = join "::" [ns,n]
+		if checkBoth n $ fst d
+			then do
+				tellLeft l $ "Line " ++ show num ++ ": Duplicate "
+					++ "declaration: " ++ var 
+				return d
+			else do
+				tellRight $ var ++ " : " ++ show (sizeof t)
+				insertVariable n t
 
 {- makeFunction - build a namespace from the values in the name and type
  -		  stacks, insert into the display, and descend into this space
  -}
-makeFunction :: Production
-makeFunction = wrap $ do
-			(n:ns) <- reverse `liftM` flushNames
-			(t:ts) <- flushTypes
-			let ts' = reverse ts
-			let f = FUNCTION_t ts' t
-			let locals = fromList $ zip ns ts'
-			modifyDisplay . insertAndDescend $ Space n f locals empty
+makeFunction :: Token -> Production
+makeFunction (Token l@(Line num _) _) = wrap $ do
+		(n:ns) <- reverse `liftM` flushNames
+		(t:ts) <- flushTypes
+		let ts' = reverse ts
+		let f = FUNCTION_t ts' t
+		let locals = fromList $ zip ns ts'
+		d <- getDisplay
+		case lookupInScope n d of
+			Just _ -> do
+				let ns = join "::" $ labels d
+				let var = join "::" [ns,n]
+				tellLeft l $ "Line " ++ show num ++ ": Duplicate"
+					++ " function declaration: " ++ var
+			Nothing -> return ()
+		modifyDisplay . insertAndDescend $ Space n f locals empty
 
 reportErr :: Token -> Compute ()
-reportErr = tellLeft . show
+reportErr t@(Token l _) = tellLeft l $ show t
 
 dereferenceArray :: Production
 dereferenceArray = wrap $ do

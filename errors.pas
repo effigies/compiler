@@ -1,7 +1,7 @@
 program example(input, output);
 var x: integer;
-var y: integer;
-var z: real;
+var y: real;
+var z: integer;
 var a: array[0 .. 3] of integer;
 var thisidisreallytoolong: integer;
 

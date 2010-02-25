@@ -9,7 +9,7 @@ module Error ( syntaxErr, resolveErr, checkLexErr, checkScopeErr ) where
 {- We need to know about Symbols -}
 import Symbol ( Symbol ( LEXERR, SYNTAXERR, EOF, ID ), LexErrType ( LONGID ),
 		isSyntaxErr, isLexErr )
-import Defs ( Token ( Token, sym ) )
+import Defs ( Token ( Token), Line (Line, NoLine), sym )
 import Production ( Production, epsilon, reportErr, pushType )
 import Compute ( Compute, getDisplay, tellLeft )
 import Space (lookupInScope)
@@ -24,7 +24,7 @@ import Control.Monad (liftM)
 -- point, at which time we will calmly panic.
 syntaxErr :: [Symbol] -> Production
 syntaxErr _ ts@(Token _ (SYNTAXERR _ _):_) = return ts
-syntaxErr val (Token l s : ts) = return $ Token l (SYNTAXERR val s) : ts
+syntaxErr val (t@(Token l s): ts) = return $ Token l (SYNTAXERR val s) : t : ts
 
 -- resolveErr
 -- Check for a syntax error, report it, and panic
@@ -39,6 +39,7 @@ resolveErr valid (t:ts) | isSyntaxErr $ sym t = reportErr t
 -- token.
 resolveErr' :: [Symbol] -> Production
 resolveErr' valid (t:ts) | inSynch (sym t) valid = checkLexErr t
+-- 						>> tellLeft NoLine ("Resolved on: " ++ show t)
 						>> return ts
 			 | otherwise		 = checkLexErr t
 			 			>> resolveErr' valid ts
@@ -58,12 +59,12 @@ checkScopeErr t@(Token _ (LEXERR LONGID (ID n))) = checkScopeErr' t n
 -- the context of validating a variable's scope, we'll discover its type
 -- and push it onto the stack, if we can. (NULL if not)
 checkScopeErr' :: Token -> String -> Compute ()
-checkScopeErr' tok n = do
+checkScopeErr' (Token l@(Line num line) sy) n = do
 			var <- lookupInScope n `liftM` getDisplay
 			case var of
 				Just t -> pushType t >> return ()
-				Nothing -> pushType NULL_t >> tellLeft
-					("Variable not in scope: " ++ show tok)
+				Nothing -> pushType NULL_t >> tellLeft l
+					("Line " ++ show num ++ ": Variable not in scope: " ++ show sy)
 
 -- inSynch
 -- Check to see if we're in the synch set
