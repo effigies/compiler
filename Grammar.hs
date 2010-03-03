@@ -47,9 +47,9 @@ program ts   = match (RES "program") ts
 program' :: Production
 program' (t:ts) | sym t == RES "var"   = declarations (t:ts)
 				     >>= program''
-	   	| sym t `elem` first   = program'' (t:ts)
-	   	| isSyntaxErr $ sym t  = epsilon (t:ts)
-		| otherwise	       = syntaxErr first (t:ts)
+		| sym t `elem` first   = program'' (t:ts)
+		| isSyntaxErr $ sym t  = epsilon (t:ts)
+		| otherwise	    = syntaxErr first (t:ts)
 				     >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin", RES "var"]
