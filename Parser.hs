@@ -30,7 +30,6 @@ end = Token NoLine EOF
 main = do
 	input <- lines `liftM` getContents
 	listingFile	<- openFile "listing" WriteMode
--- 	tokenFile	<- openFile "tokens"  WriteMode
 	let tokens = scan input ++ [end]
 	let StateT parser = program tokens
 	let init = Context (Space "GLOBAL" NULL_t empty empty, Top) [] []
@@ -57,5 +56,5 @@ writeList' file c (l:ls) ((l',e):es) =
 			hPutStrLn file $ "ERROR: " ++ e
 			writeList' file c (l:ls) es
 		else do
-			hPutStrLn file ('\n' : show l)
+			hPutStrLn file $ '\n' : show l
 			writeList' file l ls ((l',e):es)
