@@ -2,7 +2,7 @@
  - Define generic, compiler-related data structures
  -}
 
-module Defs ( Line( Line, NoLine ), Token( Token ), sym )
+module Defs ( Line( Line, NoLine ), Token( Token ), sym, line )
 	where
 
 import Symbol (Symbol)
@@ -11,6 +11,12 @@ import Symbol (Symbol)
 data Line	= Line Int String
 		| NoLine
 	deriving (Show, Eq)
+
+instance Ord Line where
+	compare (Line a _) (Line b _) = compare a b
+	compare NoLine NoLine = EQ
+	compare _ NoLine = GT
+	compare NoLine _ = LT
 
 -- Token is a symbol and its containing line
 -- Syntax errors contain a list of valid symbols (for reporting) and a list of

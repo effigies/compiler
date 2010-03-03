@@ -19,7 +19,7 @@ import Control.Monad.Writer (Writer, tell)
 
 import Type ( Type )
 import Display (Display)
-
+import Defs ( Line )
 
 {- 
  - For aspects of compiler that can't be resolved purely by PDA, we need some
@@ -49,7 +49,7 @@ data Context =	Context {
  -
  - Therefore, we need a state/writer monad.
  -}
-type Compute = StateT Context (Writer ([String],[String]))
+type Compute = StateT Context (Writer ([(Line,String)],[String]))
 
 {- Get, modify, and put methods for each field in the State -}
 getDisplay :: Compute Display
@@ -91,8 +91,8 @@ modifyNames f = do
 
 
 {- Writer methods -}
-tellLeft :: String -> Compute ()
-tellLeft s = tell ([s],[])
+tellLeft :: Line -> String -> Compute ()
+tellLeft l s = tell ([(l,s)],[])
 
 tellRight :: String -> Compute ()
 tellRight s = tell ([],[s])

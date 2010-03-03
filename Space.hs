@@ -1,6 +1,7 @@
 module Space (Space (Space), label, Cxt (Top),
 		Spacer, ascend, insertLocalr,
 		lookupInScope, insertAndDescend,
+		checkBoth,
 		labels)
 	where
 
@@ -38,6 +39,16 @@ insertLocal :: Ord a => a -> b -> Space a b -> Space a b
 insertLocal k v space = space {
 		local = insert k v (local space)
 	}
+
+{- Membership check functions -}
+checkLocal :: Ord a => a -> Space a b -> Bool
+checkLocal k (Space _ _ l _) = member k l
+
+checkSub :: Ord a => a -> Space a b -> Bool
+checkSub k (Space _ _ _ s) = member k s
+
+checkBoth :: Ord a => a -> Space a b -> Bool
+checkBoth k s = checkLocal k s || checkSub k s
 
 {- Value lookup functions -}
 lookupLocal :: Ord a => a -> Space a b -> Maybe b
@@ -82,6 +93,15 @@ insertAndDescend newSpace (oldSpace, cxt) = (newSpace,
 chain :: Ord b => (a -> a -> a) -> (Space b c -> a) -> Spacer b c -> a
 chain _ f (space, Top) = f space
 chain link f spacer@(space, _) = f space `link` chain link f (ascend spacer)
+
+checkScopeLocal :: Ord a => a -> Spacer a b -> Bool
+checkScopeLocal = chain (||) . checkLocal
+
+checkScopeSub :: Ord a => a -> Spacer a b -> Bool
+checkScopeSub = chain (||) . checkSub
+
+checkScope :: Ord a => a -> Spacer a b -> Bool
+checkScope = chain (||) . checkBoth
 
 lookupInScopeLocal :: Ord a => a -> Spacer a b -> Maybe b
 lookupInScopeLocal = chain mplus . lookupLocal

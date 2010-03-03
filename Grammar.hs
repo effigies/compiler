@@ -6,8 +6,8 @@
 module Grammar ( program ) where
 
 import Symbol ( Symbol (RES, DELIM, NUM, VAR, DOT, EOF, SIGN,
-		RELOP, MULOP, ADDOP, ASSIGNOP) )
-import Defs ( sym )
+		RELOP, MULOP, ADDOP, ASSIGNOP), isSyntaxErr )
+import Defs ( Token, sym )
 import Production ( Production, wrap, epsilon,
 			ascendDisplay, dropTypes, pushType,
 			makeDecl, makeFunction, makeArray, dereferenceArray)
@@ -47,8 +47,9 @@ program ts   = match (RES "program") ts
 program' :: Production
 program' (t:ts) | sym t == RES "var"   = declarations (t:ts)
 				     >>= program''
-	   	| sym t `elem` first   = program'' (t:ts)
-		| otherwise	       = syntaxErr first (t:ts)
+		| sym t `elem` first   = program'' (t:ts)
+		| isSyntaxErr $ sym t  = epsilon (t:ts)
+		| otherwise	    = syntaxErr first (t:ts)
 				     >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin", RES "var"]
@@ -62,6 +63,7 @@ program'' :: Production
 program'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
 					   >>= program'''
 		 | sym t == RES "begin"	     = program''' (t:ts)
+		 | isSyntaxErr $ sym t	     = epsilon (t:ts)
 		 | otherwise		     = syntaxErr first (t:ts)
 					   >>= resolveErr follow
 	where
@@ -97,6 +99,7 @@ identifier_list ts   = matchIdent ts
 identifier_list' :: Production
 identifier_list' (t:ts) | sym t == DELIM ","   = identifier_list ts
 			| sym t == DELIM ")"   = epsilon (t:ts)
+			| isSyntaxErr $ sym t  = epsilon (t:ts)
 			| otherwise	       = syntaxErr valid (t:ts)
 					     >>= resolveErr follow
 	where
@@ -112,7 +115,7 @@ declarations ts	= match (RES "var") ts
 	      >>= matchName
 	      >>= match (DELIM ":")
 	      >>= type_		-- Since type is a Haskell keyword
-	      >>= makeDecl
+	      >>= makeDecl (head ts)
 	      >>= matchSynch (DELIM ";")
 	      >>= declarations'
 	where
@@ -126,6 +129,7 @@ declarations ts	= match (RES "var") ts
 declarations' :: Production
 declarations' (t:ts) | sym t == RES "var"    = declarations (t:ts)
 		     | sym t `elem` follow   = epsilon (t:ts)
+		     | isSyntaxErr $ sym t   = epsilon (t:ts)
 		     | otherwise	     = syntaxErr valid (t:ts)
 					   >>= resolveErr follow
 	where
@@ -148,6 +152,7 @@ type_ (t:ts) | sym t == RES "array" = pushType (ARRAY_t 0 0 NULL_t)
 				  >>= standard_type
 				  >>= makeArray
 	     | sym t `elem` first   = standard_type (t:ts)
+	     | isSyntaxErr $ sym t  = epsilon (t:ts)
 	     | otherwise	    = syntaxErr first (t:ts)
 				  >>= resolveErr follow
 	where
@@ -159,10 +164,11 @@ type_ (t:ts) | sym t == RES "array" = pushType (ARRAY_t 0 0 NULL_t)
  - 5.2.1.1.1.1	standard_type → real
  -}
 standard_type :: Production
-standard_type (t:ts) | sym t == RES "integer"	= pushType INT_t >> return ts
-		     | sym t == RES "real"	= pushType REAL_t >> return ts
-		     | otherwise		= syntaxErr first (t:ts)
-					      >>= resolveErr follow
+standard_type (t:ts) | sym t == RES "integer" = pushType INT_t >> return ts
+		     | sym t == RES "real"    = pushType REAL_t >> return ts
+		     | isSyntaxErr $ sym t    = epsilon (t:ts)
+		     | otherwise	      = syntaxErr first (t:ts)
+					    >>= resolveErr follow
 	where
 		first = [RES "integer", RES "real"]
 		follow = [DELIM ";", DELIM ")"]
@@ -183,10 +189,11 @@ subprogram_declarations ts   = subprogram_declaration ts
  - 6.1.2.2.1.1	subprogram_declarations' → ε
  -}
 subprogram_declarations' :: Production
-subprogram_declarations' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
-				| sym t == RES "begin"	    = epsilon (t:ts)
-				| otherwise		    = syntaxErr valid (t:ts)
-							  >>= resolveErr follow
+subprogram_declarations' (t:ts) | sym t == RES "function" = subprogram_declarations (t:ts)
+				| sym t == RES "begin"	  = epsilon (t:ts)
+				| isSyntaxErr $ sym t     = epsilon (t:ts)
+				| otherwise		  = syntaxErr valid (t:ts)
+							>>= resolveErr follow
 	where
 		first = [RES "function"]
 		follow = [RES "begin"]
@@ -211,6 +218,7 @@ subprogram_declaration' :: Production
 subprogram_declaration' (t:ts) | sym t == RES "var"   = declarations (t:ts)
 						    >>= subprogram_declaration''
 			       | sym t `elem` first   = subprogram_declaration'' (t:ts)
+			       | isSyntaxErr $ sym t  = epsilon (t:ts)
 			       | otherwise	      = syntaxErr first (t:ts)
 						    >>= resolveErr follow
 	where
@@ -222,13 +230,12 @@ subprogram_declaration' (t:ts) | sym t == RES "var"   = declarations (t:ts)
  - 7.1.1.1.1.2	subprogram_declaration'' → compound_statement
  -}
 subprogram_declaration'' :: Production
-subprogram_declaration'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
-							  >>= compound_statement
--- 							 =>>= popScope
-				| sym t == RES "begin"	    = compound_statement (t:ts)
--- 							 =>>= popScope
-				| otherwise		    = syntaxErr first (t:ts)
-							  >>= resolveErr follow
+subprogram_declaration'' (t:ts) | sym t == RES "function" = subprogram_declarations (t:ts)
+							>>= compound_statement
+				| sym t == RES "begin"	  = compound_statement (t:ts)
+				| isSyntaxErr $ sym t     = epsilon (t:ts)
+				| otherwise		  = syntaxErr first (t:ts)
+							>>= resolveErr follow
 	where
 		first = [RES "function", RES "begin"]
 		follow = [DELIM ";"]
@@ -240,7 +247,7 @@ subprogram_head :: Production
 subprogram_head ts   = match (RES "function") ts
 		   >>= matchName
 		   >>= subprogram_head'
-		   >>= makeFunction
+		   >>= makeFunction (head ts)
 	where
 		first = [RES "function"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -249,12 +256,13 @@ subprogram_head ts   = match (RES "function") ts
  - 8.1.1.1.2.2	subprogram_head' → subprogram_head'''
  -}
 subprogram_head' :: Production
-subprogram_head' (t:ts) | sym t == DELIM "("	=   parameter_list ts
-						>>= match (DELIM ")")
-						>>= subprogram_head''
-			| sym t == DELIM ":"	=   subprogram_head'' (t:ts)
-			| otherwise		=   syntaxErr first (t:ts)
-						>>= resolveErr follow
+subprogram_head' (t:ts) | sym t == DELIM "("  = parameter_list ts
+					    >>= match (DELIM ")")
+					    >>= subprogram_head''
+			| sym t == DELIM ":"  = subprogram_head'' (t:ts)
+			| isSyntaxErr $ sym t = epsilon (t:ts)
+			| otherwise	      = syntaxErr first (t:ts)
+					    >>= resolveErr follow
 	where
 		first = [DELIM "(", DELIM ":"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -263,9 +271,9 @@ subprogram_head' (t:ts) | sym t == DELIM "("	=   parameter_list ts
  - 8.1.1.1.3.1	subprogram_head'' → : standard_type ;
  -}
 subprogram_head'' :: Production
-subprogram_head'' ts	=   match (DELIM ":") ts
-			>>= standard_type
-			>>= matchSynch (DELIM ";")
+subprogram_head'' ts = match (DELIM ":") ts
+		   >>= standard_type
+		   >>= matchSynch (DELIM ";")
 	where
 		first = [DELIM ":"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -274,10 +282,10 @@ subprogram_head'' ts	=   match (DELIM ":") ts
  - 10.1.1.1.1.1	parameter_list → id : type parameter_list'
  -}
 parameter_list :: Production
-parameter_list ts	=   matchName ts
-			>>= match (DELIM ":")
-			>>= type_
-			>>= parameter_list'
+parameter_list ts = matchName ts
+		>>= match (DELIM ":")
+		>>= type_
+		>>= parameter_list'
 	where
 		first = [VAR]
 		follow = [DELIM ")"]
@@ -287,10 +295,11 @@ parameter_list ts	=   matchName ts
  - 10.1.2.2.1.1	parameter_list' → ε
  -}
 parameter_list' :: Production
-parameter_list' (t:ts) | sym t == DELIM ";"	=   parameter_list ts
-		       | sym t == DELIM ")"	=   epsilon (t:ts)
-		       | otherwise		=   syntaxErr valid (t:ts)
-						>>= resolveErr follow
+parameter_list' (t:ts) | sym t == DELIM ";"  = parameter_list ts
+		       | sym t == DELIM ")"  = epsilon (t:ts)
+		       | isSyntaxErr $ sym t = epsilon (t:ts)
+		       | otherwise	     = syntaxErr valid (t:ts)
+					   >>= resolveErr follow
 	where
 		first = [DELIM ";"]
 		follow = [DELIM ")"]
@@ -300,8 +309,8 @@ parameter_list' (t:ts) | sym t == DELIM ";"	=   parameter_list ts
  - 11.1.1.1.1.1	compound_statement → begin compound_statement'
  -}
 compound_statement :: Production
-compound_statement ts	=   match (RES "begin") ts
-			>>= compound_statement'
+compound_statement ts = match (RES "begin") ts
+		    >>= compound_statement'
 	where
 		first = [RES "begin"]
 		follow = [DELIM ".", DELIM ";", RES "end", RES "else"]
@@ -311,11 +320,12 @@ compound_statement ts	=   match (RES "begin") ts
  - 11.1.1.1.2.2	compound_statement' → end
  -}
 compound_statement' :: Production
-compound_statement' (t:ts) | sym t == RES "end"	=   epsilon ts
-			   | sym t `elem` first	=   statement_list (t:ts)
-						>>= match (RES "end")
-			   | otherwise		=   syntaxErr first (t:ts)
-						>>= resolveErr follow
+compound_statement' (t:ts) | sym t == RES "end"	 = epsilon ts
+			   | sym t `elem` first  = statement_list (t:ts)
+					       >>= match (RES "end")
+			   | isSyntaxErr $ sym t = epsilon (t:ts)
+			   | otherwise		 = syntaxErr first (t:ts)
+					       >>= resolveErr follow
 	where
 		first = [VAR, RES "begin", RES "while", RES "if", RES "end"]
 		follow = [DELIM ".", DELIM ";", RES "end", RES "else"]
@@ -327,9 +337,9 @@ compound_statement' (t:ts) | sym t == RES "end"	=   epsilon ts
  - roll over.
  -}
 statement_list :: Production
-statement_list ts	= statement ts
-		      >>= dropTypes
-		      >>= statement_list'
+statement_list ts = statement ts
+		>>= dropTypes
+		>>= statement_list'
 	where
 		first = [VAR, RES "begin", RES "while", RES "if"]
 		follow = [RES "end"]
@@ -339,10 +349,11 @@ statement_list ts	= statement ts
  - 13.1.2.2.1.1	statement_list' → ε
  -}
 statement_list' :: Production
-statement_list' (t:ts) | sym t == DELIM ";"	=   statement_list ts
-		       | sym t `elem` follow	=   epsilon (t:ts)
-		       | otherwise		=   syntaxErr valid (t:ts)
-						>>= resolveErr follow
+statement_list' (t:ts) | sym t == DELIM ";"  = statement_list ts
+		       | sym t `elem` follow = epsilon (t:ts)
+		       | isSyntaxErr $ sym t = epsilon (t:ts)
+		       | otherwise	     = syntaxErr valid (t:ts)
+					   >>= resolveErr follow
 	where
 		first = [DELIM ";"]
 		follow = [RES "end"]
@@ -371,6 +382,7 @@ statement (t:ts) | sym t == RES "begin"	= compound_statement (t:ts)
 				      >>= match ASSIGNOP
 				      >>= expression
 				      >>= validateAssignment t
+		| isSyntaxErr $ sym t   = epsilon (t:ts)
 		| otherwise		= dropTypes (t:ts)
 				      >>= syntaxErr first
 				      >>= resolveErr follow
@@ -386,6 +398,7 @@ statement' :: Production
 statement' (t:ts) | sym t == RES "else"	= dropTypes ts
 				      >>= statement
 		  | sym t `elem` follow	= epsilon (t:ts)
+		  | isSyntaxErr $ sym t = epsilon (t:ts)
 		  | otherwise		= dropTypes (t:ts)
 		  		      >>= syntaxErr valid
 				      >>= resolveErr follow
@@ -409,16 +422,14 @@ variable ts = matchScopedVar ts
  - 15.1.1.1.2.1	variable' → ε
  -}
 variable' :: Production
-variable' (t:ts) | sym t == DELIM "["	= assertArray t
-				       >> expression ts
-				      >>= assertTopType INT_t t
-				      >>= match (DELIM "]")
-				      >>= dereferenceArray
-		 | sym t `elem` follow	= epsilon (t:ts)
--- 		 		      >>= assertPrimitive t
-		 | otherwise		= syntaxErr valid (t:ts)
--- ASSIGNOP is a pretty silly thing to synch to
--- 					>>= resolveErr follow
+variable' (t:ts) | sym t == DELIM "["  = assertArray t
+				      >> expression ts
+				     >>= assertTopType INT_t t
+				     >>= matchSynch (DELIM "]")
+				     >>= dereferenceArray
+		 | sym t `elem` follow = epsilon (t:ts)
+		 | isSyntaxErr $ sym t = epsilon (t:ts)
+		 | otherwise	       = syntaxErr valid (t:ts)
 	where
 		first = [DELIM "["]
 		follow = [ASSIGNOP]
@@ -440,10 +451,11 @@ expression_list ts = expression ts
  - 16.1.2.2.1.1	expression_list' → ε
  -}
 expression_list' :: Production
-expression_list' (t:ts) | sym t == DELIM "," = expression_list ts
-			| sym t == DELIM ")" = epsilon (t:ts)
-			| otherwise	     = syntaxErr valid (t:ts)
-					   >>= resolveErr follow
+expression_list' (t:ts) | sym t == DELIM ","  = expression_list ts
+			| sym t == DELIM ")"  = epsilon (t:ts)
+			| isSyntaxErr $ sym t = epsilon (t:ts)
+			| otherwise	      = syntaxErr valid (t:ts)
+					    >>= resolveErr follow
 	where
 		first = [DELIM ","]
 		follow = [DELIM ")"]
@@ -467,6 +479,7 @@ expression' :: Production
 expression' (t:ts) | sym t == RELOP "_"  = simple_expression ts
 				       >>= reduceRelop t
 		   | sym t `elem` follow = epsilon (t:ts)
+		   | isSyntaxErr $ sym t = epsilon (t:ts)
 		   | otherwise		 = syntaxErr valid (t:ts)
 				       >>= resolveErr follow
 	where
@@ -480,12 +493,12 @@ expression' (t:ts) | sym t == RELOP "_"  = simple_expression ts
  - 18.2.1.1.1.1	simple_expression → sign term simple_expression'
  -}
 simple_expression :: Production
-simple_expression (t:ts) | sym t == SIGN	=   term ts
-						>>= simple_expression'
-			 | sym t `elem` first	=   term (t:ts)
-						>>= simple_expression'
-			 | otherwise		=   syntaxErr first (t:ts)
-						>>= resolveErr follow
+simple_expression (t:ts) | sym t == SIGN       = term ts
+					     >>= simple_expression'
+			 | sym t `elem` first  = term (t:ts)
+					     >>= simple_expression'
+			 | otherwise	       = syntaxErr first (t:ts)
+-- 					     >>= resolveErr follow
 	where
 		first = [VAR, DELIM "(", RES "not", NUM, SIGN]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
@@ -501,7 +514,7 @@ simple_expression' (t:ts) | sym t == ADDOP "_"  = term ts
 					      >>= simple_expression'
 			  | sym t `elem` follow	= epsilon (t:ts)
 			  | otherwise	        = syntaxErr valid (t:ts)
-					      >>= resolveErr follow
+-- 					      >>= resolveErr follow
 	where
 		first = [ADDOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]", RES "do",
@@ -529,7 +542,7 @@ term' (t:ts) | sym t == MULOP "_"  = factor ts
 				 >>= term'
 	     | sym t `elem` follow = epsilon (t:ts)
 	     | otherwise	   = syntaxErr valid (t:ts)
-				 >>= resolveErr follow
+-- 				 >>= resolveErr follow
 	where
 		first = [MULOP "_"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -545,16 +558,16 @@ term' (t:ts) | sym t == MULOP "_"  = factor ts
  -}
 factor :: Production
 factor (t:ts)	| sym t == NUM		= checkLexErr t
-				       >> typeof (sym t) >>= pushType
+				       >> (pushType . typeof . sym) t
 				       >> epsilon ts
 		| sym t == VAR		= checkLexErr t
 				       >> checkScopeErr t
-				       >> factor' ts
+				       >> factor' t ts
 		| sym t == DELIM "("	= expression ts
-				      >>= match (DELIM ")")
+				      >>= matchSynch (DELIM ")")
 		| sym t == RES "not"	= factor ts
 		| otherwise		= syntaxErr first (t:ts)
-				      >>= resolveErr follow
+-- 				      >>= resolveErr follow
 	where
 		first = [NUM, VAR, DELIM "(", RES "not"]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -566,22 +579,22 @@ factor (t:ts)	| sym t == NUM		= checkLexErr t
  - 20.1.1.1.2.2	factor' → [ expression ]
  - 20.1.1.1.2.3	factor' → ε
  -}
-factor' :: Production
-factor' (t:ts)	| sym t == DELIM "("	= wrap (assertFunction t) ts
+factor' :: Token -> Production
+factor' tok (t:ts)	| sym t == DELIM "("	= wrap (assertFunction tok) ts
 				      >>= expression_list
-				      >>= match (DELIM ")")
-				      >>= validateFunction t
+				      >>= matchSynch (DELIM ")")
+				      >>= validateFunction tok
 
-	  	| sym t == DELIM "["	= assertArray t
+	  	| sym t == DELIM "["	= assertArray tok
 	  			       >> expression ts
 				      >>= assertTopType INT_t t
-				      >>= match (DELIM "]")
+				      >>= matchSynch (DELIM "]")
 				      >>= dereferenceArray
 				      
 		| sym t `elem` follow	= epsilon (t:ts)
 		
 		| otherwise	     	= syntaxErr valid (t:ts)
-				      >>= resolveErr follow
+-- 				      >>= resolveErr follow
 	where
 		first = [DELIM "(", DELIM "["]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
