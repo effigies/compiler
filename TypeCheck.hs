@@ -21,23 +21,12 @@ import Util ( join )
 
 import Control.Monad ( liftM, when )
 
-typeof :: Symbol -> Compute Type
-typeof (RELOP _)			= return $ FUNCTION_t [REAL_t, REAL_t] INT_t
-typeof (MULOP m)	| m == "*"
-		       || m == "/"	= return $ FUNCTION_t [REAL_t, REAL_t] REAL_t
-			| otherwise	= return $ FUNCTION_t [INT_t, INT_t] INT_t -- div/mod/and
-typeof (ADDOP a)	| a == "or"	= return $ FUNCTION_t [INT_t, INT_t] INT_t
-			| otherwise	= return $ FUNCTION_t [REAL_t, REAL_t] REAL_t -- +/-
-typeof (ID n)				= do
-						mt <- lookupInScope n `liftM` getDisplay
-						case mt of
-							Just t	-> return t
-							Nothing	-> return NULL_t
-typeof (BIGREAL _)			= return REAL_t
-typeof (REAL _)				= return REAL_t
-typeof (INT _)				= return INT_t
+typeof :: Symbol -> Type
+typeof (BIGREAL _)			= REAL_t
+typeof (REAL _)				= REAL_t
+typeof (INT _)				= INT_t
 typeof (LEXERR _ s)			= typeof s
-typeof _ = return NULL_t
+typeof _				= NULL_t
 
 assert :: (Type -> Bool) -> (Type -> Token -> String) -> Type -> Token -> Compute ()
 assert test errMsg t tok@(Token l s)	| test t	= return ()

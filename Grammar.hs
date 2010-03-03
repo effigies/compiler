@@ -558,7 +558,7 @@ term' (t:ts) | sym t == MULOP "_"  = factor ts
  -}
 factor :: Production
 factor (t:ts)	| sym t == NUM		= checkLexErr t
-				       >> typeof (sym t) >>= pushType
+				       >> (pushType . typeof . sym) t
 				       >> epsilon ts
 		| sym t == VAR		= checkLexErr t
 				       >> checkScopeErr t
