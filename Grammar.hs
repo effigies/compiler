@@ -47,12 +47,12 @@ program = match (RES "program")
  - 1.1.1.1.2.2	program' → program''
  -}
 program' :: Production
-program' (t:ts) | sym t == RES "var"   = declarations (t:ts)
-				     >>= program''
-		| sym t `elem` first   = program'' (t:ts)
-		| isSyntaxErr $ sym t  = epsilon (t:ts)
-		| otherwise	    = syntaxErr first (t:ts)
-				     >>= resolveErr follow
+program' (t:ts) | sym t == RES "var"  = declarations (t:ts)
+				    >>= program''
+		| sym t `elem` first  = program'' (t:ts)
+		| isSyntaxErr $ sym t = epsilon (t:ts)
+		| otherwise	      = syntaxErr first (t:ts)
+				    >>= resolveErr follow
 	where
 		first = [RES "function", RES "begin", RES "var"]
 		follow = [EOF]
