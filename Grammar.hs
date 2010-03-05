@@ -21,6 +21,8 @@ import TypeCheck ( typeof, reduceRelop, reduceAddop, reduceMulop,
 			assertFirstClass, assertTopType,
 			validateAssignment, validateFunction)
 
+import Control.Monad ( (>=>) )
+
 {- Remember that we have a state/writer monad Compute, and
  - Production = [Token] -> Compute [Token] -}
 
@@ -29,13 +31,13 @@ import TypeCheck ( typeof, reduceRelop, reduceAddop, reduceMulop,
  -}
 
 program :: Production
-program ts   = match (RES "program") ts
-	   >>= matchProgName
-	   >>= match (DELIM "(")
-	   >>= identifier_list
-	   >>= match (DELIM ")")
-	   >>= matchSynch (DELIM ";")
-	   >>= program'
+program = match (RES "program")
+      >=> matchProgName
+      >=> match (DELIM "(")
+      >=> identifier_list
+      >=> match (DELIM ")")
+      >=> matchSynch (DELIM ";")
+      >=> program'
 	where
 		first = [RES "program"]
 		follow = [EOF]
@@ -74,10 +76,10 @@ program'' (t:ts) | sym t == RES "function"   = subprogram_declarations (t:ts)
  - 1.1.1.1.4.1	program''' → compound_statement .
  -}
 program''' :: Production
-program''' ts   = compound_statement ts
-	      >>= match DOT
-	      >>= match EOF
-	      >>= resolveErr follow
+program''' = compound_statement
+	 >=> match DOT
+	 >=> match EOF
+	 >=> resolveErr follow
 	where
 		first = [RES "begin"]
 		follow = [EOF]
@@ -86,8 +88,8 @@ program''' ts   = compound_statement ts
  - 2.1.1.1.1.1	identifier_list → id identifier_list'
  -}
 identifier_list :: Production
-identifier_list ts   = matchIdent ts
-		   >>= identifier_list'
+identifier_list = matchIdent
+	      >=> identifier_list'
 	where
 		first = [VAR]
 		follow = [DELIM ")"]
@@ -111,7 +113,7 @@ identifier_list' (t:ts) | sym t == DELIM ","   = identifier_list ts
  - 3.1.1.1.1.1	declarations → var id : type ; declarations'
  -}
 declarations :: Production
-declarations ts	= match (RES "var") ts
+declarations ts = match (RES "var") ts
 	      >>= matchName
 	      >>= match (DELIM ":")
 	      >>= type_		-- Since type is a Haskell keyword
@@ -177,9 +179,9 @@ standard_type (t:ts) | sym t == RES "integer" = pushType INT_t >> return ts
  - 6.1.1.1.1.1	subprogram_declarations → subprogram_declaration ; subprogram_declarations'
  -}
 subprogram_declarations :: Production
-subprogram_declarations ts   = subprogram_declaration ts
-			   >>= matchSynch (DELIM ";")
-			   >>= subprogram_declarations'
+subprogram_declarations = subprogram_declaration
+		      >=> matchSynch (DELIM ";")
+		      >=> subprogram_declarations'
 	where
 		first = [RES "function"]
 		follow = [RES "begin"]
@@ -203,9 +205,9 @@ subprogram_declarations' (t:ts) | sym t == RES "function" = subprogram_declarati
  - 7.1.1.1.1.1	subprogram_declaration → subprogram_head subprogram_declaration'
  -}
 subprogram_declaration :: Production
-subprogram_declaration ts   = subprogram_head ts
-			  >>= subprogram_declaration'
-			  >>= ascendDisplay
+subprogram_declaration = subprogram_head
+		     >=> subprogram_declaration'
+		     >=> ascendDisplay
 	where
 		first = [RES "function"]
 		follow = [DELIM ";"]
@@ -244,10 +246,10 @@ subprogram_declaration'' (t:ts) | sym t == RES "function" = subprogram_declarati
  - 8.1.1.1.1.1	subprogram_head → function id subprogram_head'
  -}
 subprogram_head :: Production
-subprogram_head ts   = match (RES "function") ts
-		   >>= matchName
-		   >>= subprogram_head'
-		   >>= makeFunction (head ts)
+subprogram_head ts = match (RES "function") ts
+		 >>= matchName
+		 >>= subprogram_head'
+		 >>= makeFunction (head ts)
 	where
 		first = [RES "function"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -271,9 +273,9 @@ subprogram_head' (t:ts) | sym t == DELIM "("  = parameter_list ts
  - 8.1.1.1.3.1	subprogram_head'' → : standard_type ;
  -}
 subprogram_head'' :: Production
-subprogram_head'' ts = match (DELIM ":") ts
-		   >>= standard_type
-		   >>= matchSynch (DELIM ";")
+subprogram_head'' = match (DELIM ":")
+		>=> standard_type
+		>=> matchSynch (DELIM ";")
 	where
 		first = [DELIM ":"]
 		follow = [RES "var", RES "function", RES "begin"]
@@ -282,10 +284,10 @@ subprogram_head'' ts = match (DELIM ":") ts
  - 10.1.1.1.1.1	parameter_list → id : type parameter_list'
  -}
 parameter_list :: Production
-parameter_list ts = matchName ts
-		>>= match (DELIM ":")
-		>>= type_
-		>>= parameter_list'
+parameter_list = matchName
+	     >=> match (DELIM ":")
+	     >=> type_
+	     >=> parameter_list'
 	where
 		first = [VAR]
 		follow = [DELIM ")"]
@@ -309,8 +311,8 @@ parameter_list' (t:ts) | sym t == DELIM ";"  = parameter_list ts
  - 11.1.1.1.1.1	compound_statement → begin compound_statement'
  -}
 compound_statement :: Production
-compound_statement ts = match (RES "begin") ts
-		    >>= compound_statement'
+compound_statement = match (RES "begin")
+		 >=> compound_statement'
 	where
 		first = [RES "begin"]
 		follow = [DELIM ".", DELIM ";", RES "end", RES "else"]
@@ -337,9 +339,9 @@ compound_statement' (t:ts) | sym t == RES "end"	 = epsilon ts
  - roll over.
  -}
 statement_list :: Production
-statement_list ts = statement ts
-		>>= dropTypes
-		>>= statement_list'
+statement_list = statement
+	     >=> dropTypes
+	     >=> statement_list'
 	where
 		first = [VAR, RES "begin", RES "while", RES "if"]
 		follow = [RES "end"]
@@ -411,8 +413,8 @@ statement' (t:ts) | sym t == RES "else"	= dropTypes ts
  - 15.1.1.1.1.1	variable → id variable'
  -}
 variable :: Production
-variable ts = matchScopedVar ts
-	  >>= variable'
+variable = matchScopedVar
+       >=> variable'
 	where
 		first = [VAR]
 		follow = [ASSIGNOP]
@@ -439,9 +441,9 @@ variable' (t:ts) | sym t == DELIM "["  = assertArray t
  - 16.1.1.1.1.1	expression_list → expression expression_list'
  -}
 expression_list :: Production
-expression_list ts = expression ts
-		 >>= assertFirstClass
-		 >>= expression_list'
+expression_list = expression
+	      >=> assertFirstClass
+	      >=> expression_list'
 	where
 		first = [NUM, RES "not", DELIM "(", VAR, SIGN]
 		follow = [DELIM ")"]
@@ -465,8 +467,8 @@ expression_list' (t:ts) | sym t == DELIM ","  = expression_list ts
  - 17.1.1.1.1.1	expression → simple_expression expression'
  -}
 expression :: Production
-expression ts = simple_expression ts
-	    >>= expression'
+expression = simple_expression
+	 >=> expression'
 	where
 		first = [NUM, RES "not", DELIM "(", VAR, SIGN]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",
@@ -524,8 +526,8 @@ simple_expression' (t:ts) | sym t == ADDOP "_"  = term ts
  - 19.1.1.1.1.1	term → factor term'
  -}
 term :: Production
-term ts	= factor ts
-      >>= term'
+term = factor
+   >=> term'
 	where
 		first = [VAR, DELIM "(", RES "not", NUM]
 		follow = [DELIM ")", DELIM ";", DELIM ",", DELIM "]",

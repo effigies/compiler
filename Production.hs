@@ -122,8 +122,8 @@ makeFunction (Token l@(Line num _) _) = wrap $ do
 			Just _ -> do
 				let ns = join "::" $ labels d
 				let var = join "::" [ns,n]
-				tellLeft l $ "Line " ++ show num ++ ": Duplicate"
-					++ " function declaration: " ++ var
+				tellLeft l $ "Line " ++ show num ++ ": Duplicate function \
+					\declaration: " ++ var
 			Nothing -> return ()
 		modifyDisplay . insertAndDescend $ Space n f locals empty
 

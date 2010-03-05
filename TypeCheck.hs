@@ -66,8 +66,8 @@ assertFirstClass (tok:toks) = do
 				return (tok:toks)
 	where
 		expectFC :: Type -> Token -> String
-		expectFC = describe $ "Expecting a first class (primitive or array)"
-			++ " type before "
+		expectFC = describe $ "Expecting a first class (primitive or array) \
+			\type before "
 
 assertArray :: Token -> Compute ()
 assertArray tok = do
@@ -111,9 +111,8 @@ validateFunction (Token l@(Line num _) sy) = wrap $ do
 			let (FUNCTION_t params ret:stack) = remnants
 			putTypes (ret:stack)
 			when (params /= reverse args) $
-				tellLeft l ("Line " ++ show num ++ ": " ++
-					"Invalid function call. Function has "
-					++ "type " ++ show (head remnants) ++
+				tellLeft l ("Line " ++ show num ++ ": Invalid function call. \
+					\Function has type " ++ show (head remnants) ++
 					"; argument types were (" ++
 					join "," (map show $ reverse args) ++ ")")
 
