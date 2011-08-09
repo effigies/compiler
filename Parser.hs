@@ -36,7 +36,7 @@ main = do
 	(errors, sizes) <- return . snd . runWriter $ parser init
 	writeList listingFile NoLine tokens errors
 	hClose listingFile
--- 	mapM_ (putStrLn . show) errors
+ 	mapM_ (putStrLn . snd) errors
 	mapM_ putStrLn sizes
 {-
 parse :: [String] -> (([Token],Context),([String],[String]))
